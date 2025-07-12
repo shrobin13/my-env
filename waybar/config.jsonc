@@ -117,7 +117,8 @@
     "format-alt": "",
     "max-length": 10,
     "tooltip": true,
-    "tooltip-format": "Memory - {used:0.1f}GB used"
+    "tooltip-format": "Memory - {used:0.1f}GB used",
+    "on-click": "gnome-system-monitor"
   },
   "disk": {
     "interval": 600,
@@ -129,10 +130,11 @@
     "states": {
       "warning": 85,
       "critical": 90
-    }
+    },
+    "on-click": "baobab"
   },
   "temperature": {
-    "thermal-zone": 1,
+    "thermal-zone": 5,
     "format": " {temperatureC}°C",
     "format-alt": "",
     "critical-threshold": 70,
@@ -150,12 +152,13 @@
       "critical": 15
     },
     "format-icons": [
-      "",
-      "",
-      "",
-      "",
-      ""
+      "", // empty battery
+      "", // low battery
+      "", // medium battery
+      "", // high battery
+      "" // full battery
     ],
+    "on-click": "kitty -e sh -c 'upower -i /org/freedesktop/UPower/devices/battery_BAT0; echo Press ENTER to close...; read'",
     "tooltip": false
   },
   "pulseaudio": {
@@ -198,9 +201,10 @@
       "󰃟",
       "󰃠"
     ],
-    "on-scroll-up": "incbrightness",
-    "on-scroll-down": "decbrightness",
-    "tooltip": false
+    "on-scroll-up": "brightnessctl set +5%",
+    "on-scroll-down": "brightnessctl set 5%-",
+    "tooltip": false,
+    "exec-if": "brightnessctl -d intel_backlight info"
   },
   "network": {
     "format-wifi": " {signalStrength}%",
@@ -211,7 +215,8 @@
     "tooltip-format-wifi": " {essid} ({signalStrength}%)",
     "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr}",
     "tooltip-format-disconnected": "Disconnected",
-    "max-length": 50
+    "max-length": 50,
+    "on-click": "kitty -e nmtui"
   },
   "clock": {
     "timezone": "Asia/Dhaka",

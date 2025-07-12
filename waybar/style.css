@@ -173,7 +173,6 @@ window#waybar {
 /* General module styling */
 #custom-launcher,
 #custom-lock_screen,
-#custom-power,
 #cpu,
 #disk,
 #custom-updates,
@@ -185,7 +184,6 @@ window#waybar {
 #tray,
 #temperature,
 #backlight,
-#language,
 #taskbar {
     background: transparent;
     color: @text;
@@ -203,11 +201,16 @@ window#waybar {
 }
 
 /* Rightmost module */
-#custom-power {
-    color: @love;
-    padding-right: 12px;
-    margin-right: 0;
-    border-radius: 6px 12px 12px 6px;
+#custom-power-profile.balanced {
+  color: #f6c177; /* gold */
+}
+
+#custom-power-profile.performance {
+  color: #eb6f92; /* love/pink */
+}
+
+#custom-power-profile.battery_saver {
+  color: #6e6a86; /* muted gray */
 }
 
 /* Center clock */
