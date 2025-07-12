@@ -48,11 +48,11 @@
     "format": "<span font='12'></span>",
     "on-click": "rofi -show drun",
     "tooltip": false,
-    "on-click-right": "rofi -show window"
+    "on-click-right": "rofi -show drun -theme ~/.config/rofi/rose-pine.rasi"
   },
   "custom/lock_screen": {
     "format": "<span font='12'></span>",
-    "on-click": "",
+    "on-click": "systemctl suspend",
     "tooltip": false
   },
   "custom/updates": {
