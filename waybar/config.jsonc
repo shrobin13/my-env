@@ -214,8 +214,8 @@
     "max-length": 50
   },
   "clock": {
-    "timezone": "Asia/Tehran",
-    "format": " {:%H:%M}",
+    "timezone": "Asia/Dhaka",
+    "format": " {:%I:%M %p}",
     "format-alt": " {:%Y-%m-%d}",
     "tooltip": true,
     "tooltip-format": "{:%A, %B %e %Y}"
