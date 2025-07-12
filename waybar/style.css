@@ -1,0 +1,311 @@
+/* Rose Pine Inspired Color Palette */
+@define-color base #191724;
+@define-color surface #1f1d2e;
+@define-color overlay #26233a;
+@define-color muted #6e6a86;
+@define-color subtle #908caa;
+@define-color text #e0def4;
+@define-color love #eb6f92;
+@define-color gold #f6c177;
+@define-color rose #ebbcba;
+@define-color pine #31748f;
+@define-color foam #9ccfd8;
+@define-color iris #c4a7e7;
+
+@define-color highlight-low #21202e;
+@define-color highlight-med #403d52;
+@define-color highlight-high #524f67;
+
+/* Workspace Colors */
+@define-color workspace-bg @overlay;
+@define-color workspace-inactive @muted;
+@define-color workspace-active @iris;
+@define-color workspace-urgent @love;
+@define-color workspace-hover @foam;
+
+/* Module States */
+@define-color warning @gold;
+@define-color critical @love;
+@define-color charging @foam;
+@define-color discharging @text;
+
+/* Animation */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+@keyframes blink-warning {
+    to { background-color: @warning; color: @base; }
+}
+
+@keyframes blink-critical {
+    to { background-color: @critical; color: @text; }
+}
+
+* {
+  border: none;
+  border-radius: 4px; /* Reduced from 12px */
+  font-family: "JetBrains Mono", "Iosevka Nerd Font", monospace;
+  font-weight: 500;
+  font-size: 16px;
+  min-height: 0;
+}
+
+window#waybar {
+    background: transparent;
+    color: @text;
+    transition-property: background-color;
+    transition-duration: 0.3s;
+}
+
+/* Unified left and right bars */
+.modules-left, .modules-right {
+    background: @surface;
+    border-radius: 2px;
+    margin: 4px 0;
+    padding: 0 4px;
+}
+
+/* Left side modules */
+.modules-left {
+    margin-left: 8px;
+    padding-left: 0;
+}
+
+/* Right side modules */
+.modules-right {
+    margin-right: 8px;
+    padding-right: 0;
+}
+
+/* Workspaces */
+#workspaces {
+    background: @workspace-bg;
+    margin: 0 4px;
+    padding: 0 4px;
+    border-radius: 4px;
+}
+
+#workspaces button {
+    color: @workspace-inactive;
+    padding: 0 8px;
+    margin: 4px 2px;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+#workspaces button.active {
+    background: @workspace-active;
+    color: @base;
+    font-weight: 600;
+}
+
+#workspaces button.urgent {
+    background: @workspace-urgent;
+    color: @base;
+    animation: pulse 2s infinite;
+}
+
+#workspaces button:hover {
+    background: @workspace-hover;
+    color: @base;
+}
+
+#taskbar {
+    background: @overlay;
+    margin: 4px 8px;
+    padding: 0 8px;
+    border-radius: 10px;
+}
+
+/* Taskbar Buttons */
+#taskbar button {
+    padding: 0 6px;
+    margin: 4px 2px;
+    color: @workspace-inactive;
+    background: transparent;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+/* Active Window */
+#taskbar button.active {
+    background: @workspace-active;
+    color: @base;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Hover Effect */
+#taskbar button:hover {
+    background: @workspace-hover;
+    color: @base;
+}
+
+/* Urgent Window (flashing) */
+#taskbar button.urgent {
+    animation: pulse 1.5s infinite;
+    background: @workspace-urgent;
+    color: @base;
+}
+
+/* Window Icons */
+#taskbar button image {
+    margin-right: 4px;
+}
+
+/* Minimized Windows */
+#taskbar button.minimized {
+    opacity: 0.6;
+}
+
+/* Taskbar on Left/Right Side */
+.modules-left #taskbar,
+.modules-right #taskbar {
+    margin: 0;
+    padding: 0 4px;
+    background: @surface;
+}
+
+
+/* General module styling */
+#custom-launcher,
+#custom-lock_screen,
+#custom-power,
+#cpu,
+#disk,
+#custom-updates,
+#memory,
+#clock,
+#battery,
+#pulseaudio,
+#network,
+#tray,
+#temperature,
+#backlight,
+#language,
+#taskbar {
+    background: transparent;
+    color: @text;
+    padding: 0 8px;
+    margin: 0 2px;
+    transition: all 0.3s ease;
+}
+
+/* Leftmost module */
+#custom-launcher {
+    color: @iris;
+    padding-left: 16px;
+    margin-left: 0;
+    border-radius: 4px 2px 2px 4px;
+}
+
+/* Rightmost module */
+#custom-power {
+    color: @love;
+    padding-right: 12px;
+    margin-right: 0;
+    border-radius: 6px 12px 12px 6px;
+}
+
+/* Center clock */
+#clock {
+    background: @overlay;
+    color: @rose;
+    font-weight: 600;
+    padding: 0 16px;
+    margin: 4px 0;
+    border-radius: 3px;
+}
+
+/* Indicators */
+#battery.charging {
+    color: @charging;
+}
+
+#battery.warning:not(.charging) {
+    color: @warning;
+    animation: blink-warning 1s infinite steps(2);
+}
+
+#battery.critical:not(.charging) {
+    color: @critical;
+    animation: blink-critical 0.5s infinite steps(2);
+}
+
+#disk.critical,
+#temperature.critical {
+    background-color: @critical;
+    color: @base;
+}
+
+#disk.warning,
+#temperature.warning {
+    background-color: @warning;
+    color: @base;
+}
+
+/* Tray */
+#tray {
+    padding: 0 6px;
+}
+
+#tray > .passive {
+    -gtk-icon-effect: dim;
+}
+
+#tray > .needs-attention {
+    -gtk-icon-effect: highlight;
+    background-color: @love;
+}
+
+/* Tooltip */
+tooltip {
+    background: @base;
+    border: 1px solid @highlight-med;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+tooltip label {
+    color: @text;
+    font-size: 13px;
+}
+
+/* Module Specific Styling */
+#network {
+    color: @foam;
+}
+
+#pulseaudio {
+    color: @pine;
+}
+
+#pulseaudio.muted {
+    color: @muted;
+}
+
+#memory {
+    color: @iris;
+}
+
+#cpu {
+    color: @rose;
+}
+
+#temperature {
+    color: @gold;
+}
+
+#custom-updates {
+    color: @love;
+}
+
+#language {
+    color: @iris;
+    min-width: 36px;
+}
+
+

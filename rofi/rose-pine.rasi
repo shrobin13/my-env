@@ -1,0 +1,115 @@
+
+
+/**
+ * Rose Pine — Clean, Minimal Rofi theme
+ */
+
+configuration {
+    font: "JetBrainsMono Nerd Font 12";
+    show-icons: true;
+    icon-theme: "Adwaita";     // or any installed icon theme
+    drun-display-format: "{icon}  {name}";
+    display-drun:   "";
+    display-run:    "";
+    display-window: "";
+    modi: "drun,run,window";
+    width: 30%;
+    lines: 8;
+    padding: 10px;
+    border-radius: 4px;
+    location: 0;
+}
+
+/* --------------------------------------------------------------------- */
+
+window {
+    background-color: #29263e;   /* slightly lighter Rose Pine base */
+    border: 1;                   /* width only */
+    border-color: #26233a;       /* border colour */
+    border-radius: 8px;
+    padding: 8px;
+}
+
+mainbox {
+    background-color: rgba(0,0,0,0);  /* fully transparent */
+    spacing: 8px;
+    children: [inputbar, listview];
+}
+
+/* ── Search bar ─────────────────────────────────────────────────────── */
+
+inputbar {
+    background-color: #26233a;   /* overlay */
+    border-radius: 6px;
+    padding: 6px 10px;
+    children: [textbox-prompt-colon, entry];
+}
+
+textbox-prompt-colon {
+    text-color: #9ccfd8ff;      /* “foam” with full opacity */
+    expand: false;
+    background-color: #26233a;   /* overlay */
+    str:"";       
+    margin: 0 6px 0 0;
+    padding: 2px 4px 2px 0;     /* add some horizontal padding for spacing */
+}
+
+entry {
+    background-color: rgba(0,0,0,0);
+    text-color: #e0def4;         /* text */
+    placeholder: "Search…";
+}
+
+/* ── Result list ────────────────────────────────────────────────────── */
+
+listview {
+    background-color: rgba(0,0,0,0);
+    spacing: 4px;
+    dynamic: true;
+    scrollbar: false;
+}
+
+element {
+    background-color: rgba(0,0,0,0);
+    border-radius: 4px;
+    padding: 5px 8px;
+    text-color: #e0def4;
+}
+
+/* row under cursor or keyboard focus */
+element normal active {
+    background-color: #2a273f;
+}
+
+/* chosen row */
+element selected {
+    background-color: #5a598c;   /* “iris” */
+}
+
+element-icon {
+    size: 18px;
+    padding: 0 8px 0 0;
+    background-color: rgba(0,0,0,0);
+}
+
+element-text {
+    background-color: rgba(0,0,0,0);
+    text-color: inherit;
+}
+
+/* ── Messages & errors ─────────────────────────────────────────────── */
+
+message {
+    background-color: #26233a;
+    border-radius: 6px;
+    padding: 6px;
+    text-color: #e0def4;
+}
+
+error-message {
+    background-color: #eb6f92;   /* “love” */
+    border-radius: 6px;
+    padding: 6px;
+    text-color: #191724;
+}
+

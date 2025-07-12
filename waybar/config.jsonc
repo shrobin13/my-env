@@ -1,0 +1,223 @@
+{
+  "layer": "top",
+  "position": "top",
+  "mod": "dock",
+  "exclusive": true,
+  "passthrough": false,
+  "gtk-layer-shell": true,
+  "height": 36,
+  "spacing": 4,
+  "margin-top": 0,
+  "margin-bottom": 0,
+  "margin-right": 8,
+  "margin-left": 8,
+  "modules-left": [
+    "custom/launcher",
+    "custom/updates",
+    "custom/power_profile",
+    "wlr/taskbar",
+    "hyprland/workspaces"
+  ],
+  "modules-center": [
+    "clock"
+  ],
+  "modules-right": [
+    "tray",
+    "battery",
+    "pulseaudio",
+    "pulseaudio#microphone",
+    "backlight",
+    "cpu",
+    "memory",
+    "disk",
+    "temperature",
+    "network",
+    "custom/lock_screen"
+  ],
+  "custom/power_profile": {
+    "exec": "~/.config/waybar/scripts/power-profile.sh",
+    "interval": 10,
+    "format": "{}",
+    "return-type": "json",
+    "on-click": "~/.config/waybar/scripts/power-profile.sh --toggle",
+    "tooltip": true,
+    "tooltip-format": "Click to cycle power profile"
+  },
+  // Custom modules
+  "custom/launcher": {
+    "format": "<span font='12'></span>",
+    "on-click": "rofi -show drun",
+    "tooltip": false,
+    "on-click-right": "rofi -show window"
+  },
+  "custom/lock_screen": {
+    "format": "<span font='12'></span>",
+    "on-click": "",
+    "tooltip": false
+  },
+  "custom/updates": {
+    "format": "{}",
+    "exec": "~/.config/waybar/scripts/update-sys",
+    "on-click": "~/.config/waybar/scripts/update-sys update",
+    "interval": 3600,
+    "tooltip": true,
+    "signal": 8,
+    "return-type": "json"
+  },
+  "hyprland/workspaces": {
+    "on-click": "activate",
+    "disable-scroll": true,
+    "all-outputs": true,
+    "show-special": true,
+    "format": "{name}",
+    "format-icons": {
+      "1": "一",
+      "2": "二",
+      "3": "三",
+      "4": "四",
+      "urgent": "",
+      "active": "",
+      "default": ""
+    },
+    "persistent-workspaces": {
+      "*": [
+        1,
+        2,
+        3,
+        4
+      ]
+    }
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "icon-size": 14,
+    "icon-theme": "Papirus-Dark",
+    "all-outputs": true,
+    "tooltip-format": "{name}: {title}",
+    "on-click": "activate",
+    "on-click-middle": "close",
+    "ignore-list": [
+      "rofi"
+    ]
+  },
+  "tray": {
+    "icon-size": 14,
+    "spacing": 5
+  },
+  "cpu": {
+    "interval": 10,
+    "format": " {usage}%",
+    "format-alt": "",
+    "max-length": 10,
+    "tooltip": false
+  },
+  "memory": {
+    "interval": 30,
+    "format": " {percentage}%",
+    "format-alt": "",
+    "max-length": 10,
+    "tooltip": true,
+    "tooltip-format": "Memory - {used:0.1f}GB used"
+  },
+  "disk": {
+    "interval": 600,
+    "format": "󰋊 {percentage_used}%",
+    "format-alt": "󰋊",
+    "path": "/",
+    "tooltip": true,
+    "tooltip-format": "HDD - {used} used out of {total} on {path}",
+    "states": {
+      "warning": 85,
+      "critical": 90
+    }
+  },
+  "temperature": {
+    "thermal-zone": 1,
+    "format": " {temperatureC}°C",
+    "format-alt": "",
+    "critical-threshold": 70,
+    "format-critical": " {temperatureC}°C",
+    "tooltip": false
+  },
+  "battery": {
+    "format": "{icon} {capacity}%",
+    "format-alt": "{icon}",
+    "format-charging": " {capacity}%",
+    "format-plugged": " {capacity}%",
+    "format-full": " {capacity}%",
+    "states": {
+      "warning": 30,
+      "critical": 15
+    },
+    "format-icons": [
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    "tooltip": false
+  },
+  "pulseaudio": {
+    // "on-click": "pavucontroll""format": "{icon} {volume}%",
+    "format-muted": "",
+    "format-alt": "{icon}",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+",
+    "on-scroll-down": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%-",
+    "scroll-step": 5,
+    "format-icons": {
+      "headphone": "",
+      "hands-free": "",
+      "headset": "",
+      "default": [
+        "",
+        "",
+        ""
+      ]
+    },
+    "tooltip": false
+  },
+  "pulseaudio#microphone": {
+    "format": "{format_source}",
+    "format-source": " {volume}%",
+    "format-source-muted": "",
+    "format-alt": "",
+    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+",
+    "on-scroll-down": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%-",
+    "scroll-step": 5,
+    "tooltip": false
+  },
+  "backlight": {
+    "device": "intel_backlight",
+    "format": "{icon} {percent}%",
+    "format-alt": "{icon}",
+    "format-icons": [
+      "󰃞",
+      "󰃟",
+      "󰃠"
+    ],
+    "on-scroll-up": "incbrightness",
+    "on-scroll-down": "decbrightness",
+    "tooltip": false
+  },
+  "network": {
+    "format-wifi": " {signalStrength}%",
+    "format-ethernet": "",
+    "format-disconnected": "",
+    "format-alt": "{essid}",
+    "tooltip-format": " {ifname} via {gwaddr}",
+    "tooltip-format-wifi": " {essid} ({signalStrength}%)",
+    "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr}",
+    "tooltip-format-disconnected": "Disconnected",
+    "max-length": 50
+  },
+  "clock": {
+    "timezone": "Asia/Tehran",
+    "format": " {:%H:%M}",
+    "format-alt": " {:%Y-%m-%d}",
+    "tooltip": true,
+    "tooltip-format": "{:%A, %B %e %Y}"
+  }
+}
