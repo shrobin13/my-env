@@ -139,6 +139,7 @@
     "format-alt": "",
     "critical-threshold": 70,
     "format-critical": " {temperatureC}°C",
+    "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
     "tooltip": false
   },
   "battery": {
