@@ -22,16 +22,18 @@ configuration {
 
 /* --------------------------------------------------------------------- */
 
+
+/* ~/.config/rofi/rose‑pine‑glass.rasi */
 window {
-    background-color: #29263e;   /* slightly lighter Rose Pine base */
-    border: 1;                   /* width only */
-    border-color: #26233a;       /* border colour */
+    background-color: rgba(28,25,40,0.60);   /* slightly darker & 60% opaque */
+    border: 1px;
+    border-color: rgba(203,166,247,0.9);       /* darker border for contrast */
     border-radius: 8px;
-    padding: 8px;
+    padding: 15px;
 }
 
 mainbox {
-    background-color: rgba(0,0,0,0);  /* fully transparent */
+    background-color: transparent;
     spacing: 8px;
     children: [inputbar, listview];
 }
