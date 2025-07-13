@@ -54,7 +54,7 @@
 }
 
 window#waybar {
-    background: transparent;
+    background: rgba(25, 23, 36, 0.2);
     color: @text;
     transition-property: background-color;
     transition-duration: 0.3s;
@@ -62,9 +62,10 @@ window#waybar {
 
 /* Unified left and right bars */
 .modules-left, .modules-right {
-    background: @surface;
+    background: rgba(31, 29, 46, 0.35);
     border-radius: 2px;
     margin: 4px 0;
+    border: 1px solid rgba(203,166,247,0.6);  /* Lavender border */
     padding: 0 4px;
 }
 
@@ -82,7 +83,7 @@ window#waybar {
 
 /* Workspaces */
 #workspaces {
-    background: @workspace-bg;
+    background:rgba(31, 29, 46, 0.35);
     margin: 0 4px;
     padding: 0 4px;
     border-radius: 4px;
@@ -97,8 +98,8 @@ window#waybar {
 }
 
 #workspaces button.active {
-    background: @workspace-active;
-    color: @base;
+    border: 1px solid rgba(203,166,247,0.6);
+    color: @text;
     font-weight: 600;
 }
 
@@ -114,10 +115,10 @@ window#waybar {
 }
 
 #taskbar {
-    background: @overlay;
+    background: rgba(31, 29, 46, 0.35);
     margin: 4px 8px;
     padding: 0 8px;
-    border-radius: 10px;
+    border-radius: 3px;
 }
 
 /* Taskbar Buttons */
@@ -132,8 +133,9 @@ window#waybar {
 
 /* Active Window */
 #taskbar button.active {
-    background: @workspace-active;
-    color: @base;
+    background: rgba(25, 23, 36, 0.3);
+    border: 1px solid rgba(203,166,247,0.5);
+    color: @text;
     font-weight: 600;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -166,7 +168,7 @@ window#waybar {
 .modules-right #taskbar {
     margin: 0;
     padding: 0 4px;
-    background: @surface;
+    background: transparent;
 }
 
 
@@ -215,11 +217,12 @@ window#waybar {
 
 /* Center clock */
 #clock {
-    background: @overlay;
+    background: rgba(31, 29, 46, 0.35);
     color: @rose;
     font-weight: 600;
     padding: 0 16px;
     margin: 4px 0;
+    border: 1px solid rgba(203,166,247,0.6);  /* Lavender border */
     border-radius: 3px;
 }
 
