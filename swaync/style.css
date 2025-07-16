@@ -1,0 +1,134 @@
+
+* {
+  all: unset;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 14px;
+  color: #e0def4;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+/* === Control Center Base === */
+.control-center {
+  background-color: #191724;
+  border: 1px solid rgba(196, 167, 231, 0.5); /* iris */
+  box-shadow: 0 4px 20px rgba(203, 166, 247, 0.15);
+  padding: 12px;
+  margin: 8px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 6px;
+  min-width: 360px;
+}
+
+/* === Notification Bubble === */
+.notification {
+  background-color: #1f1d2e;
+  border: 1px solid rgba(196, 167, 231, 0.35); /* iris */
+  border-left: 4px solid #c4a7e7;
+  box-shadow: 0 2px 10px rgba(203, 166, 247, 0.1);
+  margin: 6px 0;
+  padding: 10px;
+  animation: fadeIn 0.25s ease-out;
+  border-radius: 6px;
+}
+
+.notification:hover {
+  background-color: #26233a;
+  box-shadow: 0 0 10px rgba(235, 108, 146, 0.2); /* love */
+}
+
+/* === Fade Animation === */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* === Title and DND Header === */
+.widget-title,
+.widget-dnd {
+  font-weight: 600;
+  font-size: 14px;
+  color: #f6c177;
+  margin: 6px 0;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(203, 166, 247, 0.2);
+}
+
+/* === Buttons Grid === */
+.widget-buttons-grid {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 4px 0;
+  width:100%;
+}
+
+.widget-buttons-grid button {
+  background-color: #2a273f;
+  border: 1px solid rgba(203, 166, 247, 0.4);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin: 0 3px;
+  text-align: center;
+  font-size: 13px;
+  color: #e0def4;
+  box-shadow: 0 0 6px rgba(203, 166, 247, 0.1);
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 36px;
+}
+
+.widget-buttons-grid button:hover {
+  background-color: #31748f;
+  box-shadow: 0 0 8px rgba(203, 166, 247, 0.4);
+  color: #e0def4;
+}
+
+.widget-buttons-grid button:active {
+  background-color: #f6c177;
+  color: #191724;
+  box-shadow: 0 0 10px rgba(243, 139, 168, 0.4);
+}
+
+/* === MPRIS Media Player === */
+.mpris {
+  background-color: #1f1d2e;
+  border: 1px solid rgba(203, 166, 247, 0.3);
+  border-radius: 6px;
+  box-shadow: 0 1px 8px rgba(203, 166, 247, 0.08);
+  padding: 10px;
+  margin: 10px 0;
+}
+
+/* === Labels & Info === */
+.label, .dnd, .title {
+  padding: 4px 0;
+  color: #e0def4;
+}
+
+/* === Clear All Button === */
+.clear-all-button {
+  background-color: #eb6f92;
+  border: 1px solid rgba(203, 166, 247, 0.4);
+  border-radius: 4px;
+  color: #191724;
+  padding: 4px 10px;
+  font-weight: 600;
+  margin-left: auto;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 0 6px rgba(203, 166, 247, 0.15);
+}
+
+.clear-all-button:hover {
+  background-color: #f6c177;
+  box-shadow: 0 0 10px rgba(243, 139, 168, 0.4);
+}
+
+.clear-all-button:active {
+  background-color: #9ccfd8;
+  color: #191724;
+  box-shadow: 0 0 12px rgba(203, 166, 247, 0.35);
+}

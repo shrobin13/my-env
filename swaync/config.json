@@ -1,0 +1,75 @@
+{
+  "$schema": "/etc/xdg/swaync/configSchema.json",
+  "layer": "overlay",
+  "positionX": "right",
+  "positionY": "top",
+  "cssPriority": "user",
+  "control-center-width": 360,
+  "control-center-height": 500,
+  "control-center-margin-top": 8,
+  "control-center-margin-bottom": 8,
+  "control-center-margin-right": 8,
+  "control-center-margin-left": 8,
+  "notification-window-width": 340,
+  "timeout": 5,
+  "timeout-low": 3,
+  "timeout-critical": 8,
+  "fit-to-screen": true,
+  "keyboard-shortcuts": true,
+  "image-visibility": "always",
+  "transition-time": 120,
+  "hide-on-clear": true,
+  "hide-on-action": true,
+  "script-fail-notify": true,
+  "scripts": {
+    "volume-change": {
+      "exec": "notify-send '🔊 Volume' '$(wpctl get-volume @DEFAULT_AUDIO_SINK@)'",
+      "urgency": "Normal"
+    }
+  },
+  "notification-visibility": {
+    "music-player": {
+      "state": "enabled",
+      "urgency": "Normal",
+      "app-name": "Spotify|mpv"
+    }
+  },
+  "widgets": [
+    "buttons-grid",
+    "title",
+    "dnd",
+    "mpris",
+    "notifications"
+  ],
+  "widget-config": {
+    "mpris": {
+      "image-size": 60,
+      "image-radius": 6,
+      "show-player-info": true
+    },
+    "buttons-grid": {
+      "actions": [
+        {
+          "label": "󰂯",
+          "command": "blueman-manager && swaync-client -rs"
+        },
+        {
+          "label": "󰌾",
+          "command": "swaylock && swaync-client -rs"
+        },
+        {
+          "label": "󰤄",
+          "command": "systemctl suspend && swaync-client -rs"
+        },
+        {
+          "label": "󰜉",
+          "command": "systemctl reboot && swaync-client -rs"
+        },
+        {
+          "label": "⏻",
+          "command": "systemctl poweroff && swaync-client -rs"
+        }
+      ]
+    }
+  }
+}

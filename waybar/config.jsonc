@@ -25,11 +25,8 @@
     "tray",
     "battery",
     "pulseaudio",
-    "pulseaudio#microphone",
-    "backlight",
     "cpu",
     "memory",
-    "disk",
     "temperature",
     "network",
     "custom/lock_screen"
@@ -46,13 +43,12 @@
   // Custom modules
   "custom/launcher": {
     "format": "<span font='12'></span>",
-    "on-click": "rofi -show drun",
-    "tooltip": false,
-    "on-click-right": "rofi -show drun -theme ~/.config/rofi/rose-pine.rasi"
+    "on-click": " rofi -show drun -theme ~/.config/rofi/rose-pine.rasi",
+    "tooltip": false
   },
   "custom/lock_screen": {
-    "format": "<span font='12'></span>",
-    "on-click": "systemctl suspend",
+    "format": "<span font='12'>🔔</span>",
+    "on-click": "swaync-client -t",
     "tooltip": false
   },
   "custom/updates": {
@@ -120,19 +116,6 @@
     "tooltip-format": "Memory - {used:0.1f}GB used",
     "on-click": "gnome-system-monitor"
   },
-  "disk": {
-    "interval": 600,
-    "format": "󰋊 {percentage_used}%",
-    "format-alt": "󰋊",
-    "path": "/",
-    "tooltip": true,
-    "tooltip-format": "HDD - {used} used out of {total} on {path}",
-    "states": {
-      "warning": 85,
-      "critical": 90
-    },
-    "on-click": "baobab"
-  },
   "temperature": {
     "thermal-zone": 5,
     "format": " {temperatureC}°C",
@@ -163,10 +146,9 @@
     "tooltip": false
   },
   "pulseaudio": {
-    // "on-click": "pavucontroll""format": "{icon} {volume}%",
     "format-muted": "",
     "format-alt": "{icon}",
-    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+    "on-click": "pavucontrol",
     "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+",
     "on-scroll-down": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%-",
     "scroll-step": 5,
@@ -181,31 +163,6 @@
       ]
     },
     "tooltip": false
-  },
-  "pulseaudio#microphone": {
-    "format": "{format_source}",
-    "format-source": " {volume}%",
-    "format-source-muted": "",
-    "format-alt": "",
-    "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%+",
-    "on-scroll-down": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SOURCE@ 5%-",
-    "scroll-step": 5,
-    "tooltip": false
-  },
-  "backlight": {
-    "device": "intel_backlight",
-    "format": "{icon} {percent}%",
-    "format-alt": "{icon}",
-    "format-icons": [
-      "󰃞",
-      "󰃟",
-      "󰃠"
-    ],
-    "on-scroll-up": "brightnessctl set +5%",
-    "on-scroll-down": "brightnessctl set 5%-",
-    "tooltip": false,
-    "exec-if": "brightnessctl -d intel_backlight info"
   },
   "network": {
     "format-wifi": " {signalStrength}%",
