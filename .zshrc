@@ -1,3 +1,10 @@
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
 #
 #            _
 #    _______| |__  _ __ ___
@@ -8,7 +15,8 @@
 # -----------------------------------------------------
 
 export ZSH="$HOME/.oh-my-zsh"
-ZSH_THEME="avit"
+# ZSH_THEME=""
+ZSH_THEME="powerlevel10k/powerlevel10k"
 source $ZSH/oh-my-zsh.sh
 
 # -----------------------------------------------------
@@ -60,6 +68,8 @@ alias gc='git commit -v'
 alias gp='git push'
 alias gl='git pull --ff-only'
 alias gco='git checkout'
+alias art="php artisan"
+alias fs="fastfetch --config examples/22.jsonc"
 
 # Arch or Fedora
 if [[ -x /usr/bin/pacman ]]; then
@@ -226,15 +236,10 @@ fbrew() {
 }
 
 # -----------------------------------------------------
-#aliases
-# -----------------------------------------------------
-alias art="php artisan"
-if [[ $- == *i* ]]; then
-  fastfetch --config examples/22.jsonc
-fi
-# -----------------------------------------------------
 # END OF FILE
 # -----------------------------------------------------
 
 fpath+=~/.zfunc
-alias idea="/opt/intellij-idea-community-edition/bin/idea.sh"
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
