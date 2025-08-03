@@ -237,3 +237,4 @@ fi
 # -----------------------------------------------------
 
 fpath+=~/.zfunc
+alias idea="/opt/intellij-idea-community-edition/bin/idea.sh"
