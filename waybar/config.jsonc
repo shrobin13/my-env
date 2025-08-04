@@ -149,8 +149,6 @@
     "format-muted": "",
     "format-alt": "{icon}",
     "on-click": "pavucontrol",
-    "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+",
-    "on-scroll-down": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%-",
     "scroll-step": 5,
     "format-icons": {
       "headphone": "",
