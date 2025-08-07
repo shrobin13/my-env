@@ -23,7 +23,7 @@
   "script-fail-notify": true,
   "scripts": {
     "volume-change": {
-      "exec": "notify-send '🔊 Volume' '$(wpctl get-volume @DEFAULT_AUDIO_SINK@)'",
+      "exec": "bash -c \"notify-send '🔊 Volume' '$(wpctl get-volume @DEFAULT_AUDIO_SINK@)'\"",
       "urgency": "Normal"
     }
   },
