@@ -99,7 +99,7 @@ window#waybar {
 }
 
 /* Workspaces */
-#workspaces {
+#clock {
   background: rgba(31, 29, 46, 0.35);
   margin: 0 4px;
   padding: 0 4px;
@@ -188,7 +188,6 @@ window#waybar {
   background: transparent;
 }
 
-
 /* General module styling */
 #custom-launcher,
 #custom-lock_screen,
@@ -216,9 +215,8 @@ window#waybar {
   border-radius: 4px 2px 2px 4px;
 }
 
-
 /* Center clock */
-#clock {
+#workspaces {
   background: rgba(31, 29, 46, 0.35);
   color: @rose;
   font-weight: 600;

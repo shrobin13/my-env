@@ -6,28 +6,36 @@
   "passthrough": false,
   "gtk-layer-shell": true,
   "height": 36,
-  "spacing": 5,
+  "spacing": 6,
   "margin-top": 0,
   "margin-bottom": 0,
   "margin-right": 8,
   "margin-left": 8,
+  // Left: Launchers & Navigation
   "modules-left": [
     "custom/launcher",
-    "custom/power_profile",
-    "wlr/taskbar",
-    "hyprland/workspaces"
-  ],
-  "modules-center": [
+    "network",
     "clock"
   ],
+  // Center: Time
+  "modules-center": [
+    "hyprland/workspaces"
+  ],
+  // Right: System status
   "modules-right": [
     "tray",
     "battery",
-    "network",
     "cpu",
     "temperature",
+    "custom/power_profile",
     "custom/lock_screen"
   ],
+  // Custom Modules
+  "custom/launcher": {
+    "format": "<span font='14'></span>",
+    "on-click": "rofi -show drun -theme ~/.config/rofi/rose-pine.rasi",
+    "tooltip": false
+  },
   "custom/power_profile": {
     "exec": "~/.config/waybar/scripts/power-profile.sh",
     "interval": 10,
@@ -37,17 +45,12 @@
     "tooltip": true,
     "tooltip-format": "Click to cycle power profile"
   },
-  // Custom modules
-  "custom/launcher": {
-    "format": "<span font='12'></span>",
-    "on-click": " rofi -show drun -theme ~/.config/rofi/rose-pine.rasi",
-    "tooltip": false
-  },
   "custom/lock_screen": {
-    "format": "<span font='12'>🔔</span>",
+    "format": "<span font='14'></span>",
     "on-click": "swaync-client -t",
     "tooltip": false
   },
+  // Workspaces
   "hyprland/workspaces": {
     "on-click": "activate",
     "disable-scroll": true,
@@ -55,13 +58,13 @@
     "show-special": true,
     "format": "{name}",
     "format-icons": {
-      "1": "一",
-      "2": "二",
-      "3": "三",
-      "4": "四",
-      "urgent": "",
-      "active": "",
-      "default": ""
+      "urgent": "<span foreground='#e06c75'>[!]</span>",
+      "default": "<span foreground='#888888'>[·]</span>"
+    },
+    "format-workspace": "<span foreground='{color}'>[{name}]</span>",
+    "color": {
+      "active": "#61afef",
+      "inactive": "#888888"
     },
     "persistent-workspaces": {
       "*": [
@@ -72,69 +75,69 @@
       ]
     }
   },
-  "wlr/taskbar": {
-    "format": "{icon}",
-    "icon-size": 14,
-    "icon-theme": "Papirus-Dark",
-    "all-outputs": true,
-    "tooltip-format": "{name}: {title}",
-    "on-click": "activate",
-    "on-click-middle": "close",
-    "ignore-list": [
-      "rofi"
-    ]
-  },
+  // Tray
   "tray": {
-    "icon-size": 14,
-    "spacing": 5
+    "icon-size": 16,
+    "spacing": 6
   },
+  // CPU Monitor
   "cpu": {
-    "interval": 10,
-    "format": " {usage}%",
-    "format-alt": "",
-    "max-length": 10,
-    "tooltip": false
+    "interval": 1,
+    "format": "{icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7} {usage}%",
+    "max-length": 12,
+    "tooltip": false,
+    "format-icons": [
+      "<span color='#31748f'>▁</span>", // pine green (very low usage)
+      "<span color='#4c566a'>▂</span>", // moon gray (low usage)
+      "<span color='#c4a7e7'>▃</span>", // iris purple (moderate low)
+      "<span color='#ebbcba'>▄</span>", // flamingo pink (moderate)
+      "<span color='#f6c177'>▅</span>", // gold (moderate-high)
+      "<span color='#f6c177'>▆</span>", // gold (high)
+      "<span color='#eb6f92'>▇</span>", // rose pink (very high)
+      "<span color='#b4637a'>█</span>" // wine red (max usage)
+    ]
   },
   "temperature": {
     "thermal-zone": 5,
-    "format": " {temperatureC}°C",
-    "format-alt": "",
+    "format": "<span color='#f6c177'></span> {temperatureC}°C",
+    "format-alt": "<span color='#31748f'></span>",
     "critical-threshold": 70,
-    "format-critical": " {temperatureC}°C",
+    "format-critical": "<span color='#eb6f92'></span> {temperatureC}°C",
     "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
     "tooltip": false
   },
   "battery": {
     "format": "{icon} {capacity}%",
     "format-alt": "{icon}",
-    "format-charging": " {capacity}%",
-    "format-plugged": " {capacity}%",
-    "format-full": " {capacity}%",
+    "format-charging": "<span color='#31748f'> {capacity}%</span>",
+    "format-plugged": "<span color='#4c566a'> {capacity}%</span>",
+    "format-full": "<span color='#f6c177'> {capacity}%</span>",
     "states": {
       "warning": 30,
       "critical": 15
     },
     "format-icons": [
-      "", // empty battery
-      "", // low battery
-      "", // medium battery
-      "", // high battery
-      "" // full battery
+      "<span color='#b4637a'></span>", // empty wine red
+      "<span color='#eb6f92'></span>", // low rose pink
+      "<span color='#f6c177'></span>", // medium gold
+      "<span color='#31748f'></span>", // good pine green
+      "<span color='#286983'></span>" // full teal-ish green
     ],
     "on-click": "kitty -e sh -c 'upower -i /org/freedesktop/UPower/devices/battery_BAT0; echo Press ENTER to close...; read'",
     "tooltip": false
   },
+  // Network
   "network": {
     "interface": "wlan0",
     "format-wifi": "  ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}",
-    "format-ethernet": " {ifname} ↓{bandwidthDownBytes B/s ↑{bandwidthUpBytes}B/s",
-    "format-disconnected": " Disconnected",
-    "tooltip-format": " {ifname} via {gwaddr} ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
-    "tooltip-format-wifi": "  ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
-    "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr} ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
-    "max-length": 50,
+    "format-wifi-alt": "  {essid}",
+    "format-ethernet": " {ifname}",
+    "format-disconnected": "",
+    "tooltip-format-wifi": "SSID: {essid}\nDown: {bandwidthDownBytes} B/s\nUp: {bandwidthUpBytes} B/s",
+    "tooltip-format-ethernet": "{ifname} {ipaddr}/{cidr}",
     "on-click": "kitty -e nmtui"
   },
+  // Clock
   "clock": {
     "timezone": "Asia/Dhaka",
     "format": " {:%I:%M %p}",

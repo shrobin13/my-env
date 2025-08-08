@@ -14,13 +14,28 @@ fi
 
 new_current=$(powerprofilesctl get)
 
-# Map profile to icon
-if [[ "$new_current" == "power-saver" ]]; then
-  icon="" # lightning bolt for power saver
-elif [[ "$new_current" == "balanced" ]]; then
-  icon="" # sync/refresh icon for balanced
-else
-  icon="" # rocket for performance
-fi
+case "$new_current" in
+power-saver)
+  icon=""        # lightning bolt
+  color="#98c379" # green-ish
+  label="Saver"
+  ;;
+balanced)
+  icon=""        # sync icon
+  color="#61afef" # blue-ish
+  label="Balanced"
+  ;;
+performance)
+  icon=""        # rocket
+  color="#e06c75" # red-ish
+  label="Performance"
+  ;;
+*)
+  icon="?"
+  color="#bbbbbb"
+  label="Unknown"
+  ;;
+esac
 
-echo "{\"text\": \"$icon\"}"
+# JSON output with colored icon + label, and tooltip with full text
+echo "{\"text\": \"<span foreground='$color'>$icon</span> <span foreground='#ddd'>$label</span>\", \"tooltip\": \"Power Profile: $new_current\"}"
