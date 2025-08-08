@@ -194,15 +194,12 @@ window#waybar {
 #custom-lock_screen,
 #cpu,
 #disk,
-#custom-updates,
 #memory,
 #clock,
 #battery,
-#pulseaudio,
 #network,
 #tray,
 #temperature,
-#backlight,
 #taskbar {
   background: transparent;
   color: @text;
@@ -219,21 +216,6 @@ window#waybar {
   border-radius: 4px 2px 2px 4px;
 }
 
-/* Rightmost module */
-#custom-power-profile.balanced {
-  color: #f6c177;
-  /* gold */
-}
-
-#custom-power-profile.performance {
-  color: #eb6f92;
-  /* love/pink */
-}
-
-#custom-power-profile.battery_saver {
-  color: #6e6a86;
-  /* muted gray */
-}
 
 /* Center clock */
 #clock {
@@ -306,14 +288,6 @@ tooltip label {
   color: @foam;
 }
 
-#pulseaudio {
-  color: @pine;
-}
-
-#pulseaudio.muted {
-  color: @muted;
-}
-
 #memory {
   color: @iris;
 }
@@ -324,13 +298,4 @@ tooltip label {
 
 #temperature {
   color: @gold;
-}
-
-#custom-updates {
-  color: @love;
-}
-
-#language {
-  color: @iris;
-  min-width: 36px;
 }

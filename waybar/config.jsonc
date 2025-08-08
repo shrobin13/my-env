@@ -126,7 +126,7 @@
   },
   "network": {
     "interface": "wlan0",
-    "format-wifi": "  ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
+    "format-wifi": "  ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}",
     "format-ethernet": " {ifname} ↓{bandwidthDownBytes B/s ↑{bandwidthUpBytes}B/s",
     "format-disconnected": " Disconnected",
     "tooltip-format": " {ifname} via {gwaddr} ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
