@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# Get current profile
 current=$(powerprofilesctl get)
 
-# If triggered with --toggle, switch to next profile
 if [[ "$1" == "--toggle" ]]; then
   if [[ "$current" == "power-saver" ]]; then
     powerprofilesctl set balanced
@@ -14,6 +12,15 @@ if [[ "$1" == "--toggle" ]]; then
   fi
 fi
 
-# Return current profile as JSON for Waybar
 new_current=$(powerprofilesctl get)
-echo "{\"text\": \"󰾆 ${new_current^}\"}" # Uppercase first letter
+
+# Map profile to icon
+if [[ "$new_current" == "power-saver" ]]; then
+  icon="" # lightning bolt for power saver
+elif [[ "$new_current" == "balanced" ]]; then
+  icon="" # sync/refresh icon for balanced
+else
+  icon="" # rocket for performance
+fi
+
+echo "{\"text\": \"$icon\"}"

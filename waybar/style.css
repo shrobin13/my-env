@@ -31,144 +31,161 @@
 
 /* Animation */
 @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
+  0% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes blink-warning {
-    to { background-color: @warning; color: @base; }
+  to {
+    background-color: @warning;
+    color: @base;
+  }
 }
 
 @keyframes blink-critical {
-    to { background-color: @critical; color: @text; }
+  to {
+    background-color: @critical;
+    color: @text;
+  }
 }
 
 * {
   border: none;
-  border-radius: 4px; /* Reduced from 12px */
-  font-family: "JetBrains Mono", "Iosevka Nerd Font", monospace;
+  border-radius: 4px;
+  /* Reduced from 12px */
+  font-family: "FiraCode Nerd Font", monospace;
   font-weight: 500;
   font-size: 16px;
   min-height: 0;
 }
 
 window#waybar {
-    background: rgba(25, 23, 36, 0.2);
-    color: @text;
-    transition-property: background-color;
-    transition-duration: 0.3s;
+  background: rgba(25, 23, 36, 0.2);
+  color: @text;
+  transition-property: background-color;
+  transition-duration: 0.3s;
 }
 
 /* Unified left and right bars */
-.modules-left, .modules-right {
-    background: rgba(31, 29, 46, 0.35);
-    border-radius: 2px;
-    margin: 4px 0;
-    border: 1px solid rgba(203,166,247,0.6);  /* Lavender border */
-    padding: 0 4px;
+.modules-left,
+.modules-right {
+  background: rgba(31, 29, 46, 0.35);
+  border-radius: 2px;
+  margin: 4px 0;
+  border: 1px solid rgba(203, 166, 247, 0.6);
+  /* Lavender border */
+  padding: 0 4px;
 }
 
 /* Left side modules */
 .modules-left {
-    margin-left: 8px;
-    padding-left: 0;
+  margin-left: 8px;
+  padding-left: 0;
 }
 
 /* Right side modules */
 .modules-right {
-    margin-right: 8px;
-    padding-right: 0;
+  margin-right: 8px;
+  padding-right: 0;
 }
 
 /* Workspaces */
 #workspaces {
-    background:rgba(31, 29, 46, 0.35);
-    margin: 0 4px;
-    padding: 0 4px;
-    border-radius: 4px;
+  background: rgba(31, 29, 46, 0.35);
+  margin: 0 4px;
+  padding: 0 4px;
+  border-radius: 4px;
 }
 
 #workspaces button {
-    color: @workspace-inactive;
-    padding: 0 8px;
-    margin: 4px 2px;
-    border-radius: 2px;
-    transition: all 0.3s ease;
+  color: @workspace-inactive;
+  padding: 0 8px;
+  margin: 4px 2px;
+  border-radius: 2px;
+  transition: all 0.3s ease;
 }
 
 #workspaces button.active {
-    border: 1px solid rgba(203,166,247,0.6);
-    color: @text;
-    font-weight: 600;
+  border: 1px solid rgba(203, 166, 247, 0.6);
+  color: @text;
+  font-weight: 600;
 }
 
 #workspaces button.urgent {
-    background: @workspace-urgent;
-    color: @base;
-    animation: pulse 2s infinite;
+  background: @workspace-urgent;
+  color: @base;
+  animation: pulse 2s infinite;
 }
 
 #workspaces button:hover {
-    background: @workspace-hover;
-    color: @base;
+  background: @workspace-hover;
+  color: @base;
 }
 
 #taskbar {
-    background: rgba(31, 29, 46, 0.35);
-    margin: 4px 8px;
-    padding: 0 8px;
-    border-radius: 3px;
+  background: rgba(31, 29, 46, 0.35);
+  margin: 4px 8px;
+  padding: 0 8px;
+  border-radius: 3px;
 }
 
 /* Taskbar Buttons */
 #taskbar button {
-    padding: 0 6px;
-    margin: 4px 2px;
-    color: @workspace-inactive;
-    background: transparent;
-    border-radius: 3px;
-    transition: all 0.2s ease;
+  padding: 0 6px;
+  margin: 4px 2px;
+  color: @workspace-inactive;
+  background: transparent;
+  border-radius: 3px;
+  transition: all 0.2s ease;
 }
 
 /* Active Window */
 #taskbar button.active {
-    background: rgba(25, 23, 36, 0.3);
-    border: 1px solid rgba(203,166,247,0.5);
-    color: @text;
-    font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: rgba(25, 23, 36, 0.3);
+  border: 1px solid rgba(203, 166, 247, 0.5);
+  color: @text;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Hover Effect */
 #taskbar button:hover {
-    background: @workspace-hover;
-    color: @base;
+  background: @workspace-hover;
+  color: @base;
 }
 
 /* Urgent Window (flashing) */
 #taskbar button.urgent {
-    animation: pulse 1.5s infinite;
-    background: @workspace-urgent;
-    color: @base;
+  animation: pulse 1.5s infinite;
+  background: @workspace-urgent;
+  color: @base;
 }
 
 /* Window Icons */
 #taskbar button image {
-    margin-right: 4px;
+  margin-right: 4px;
 }
 
 /* Minimized Windows */
 #taskbar button.minimized {
-    opacity: 0.6;
+  opacity: 0.6;
 }
 
 /* Taskbar on Left/Right Side */
 .modules-left #taskbar,
 .modules-right #taskbar {
-    margin: 0;
-    padding: 0 4px;
-    background: transparent;
+  margin: 0;
+  padding: 0 4px;
+  background: transparent;
 }
 
 
@@ -187,131 +204,133 @@ window#waybar {
 #temperature,
 #backlight,
 #taskbar {
-    background: transparent;
-    color: @text;
-    padding: 0 8px;
-    margin: 0 2px;
-    transition: all 0.3s ease;
+  background: transparent;
+  color: @text;
+  padding: 0 8px;
+  margin: 0 2px;
+  transition: all 0.3s ease;
 }
 
 /* Leftmost module */
 #custom-launcher {
-    color: @iris;
-    padding-left: 16px;
-    margin-left: 0;
-    border-radius: 4px 2px 2px 4px;
+  color: @iris;
+  padding-left: 16px;
+  margin-left: 0;
+  border-radius: 4px 2px 2px 4px;
 }
 
 /* Rightmost module */
 #custom-power-profile.balanced {
-  color: #f6c177; /* gold */
+  color: #f6c177;
+  /* gold */
 }
 
 #custom-power-profile.performance {
-  color: #eb6f92; /* love/pink */
+  color: #eb6f92;
+  /* love/pink */
 }
 
 #custom-power-profile.battery_saver {
-  color: #6e6a86; /* muted gray */
+  color: #6e6a86;
+  /* muted gray */
 }
 
 /* Center clock */
 #clock {
-    background: rgba(31, 29, 46, 0.35);
-    color: @rose;
-    font-weight: 600;
-    padding: 0 16px;
-    margin: 4px 0;
-    border: 1px solid rgba(203,166,247,0.6);  /* Lavender border */
-    border-radius: 3px;
+  background: rgba(31, 29, 46, 0.35);
+  color: @rose;
+  font-weight: 600;
+  padding: 0 16px;
+  margin: 4px 0;
+  border: 1px solid rgba(203, 166, 247, 0.6);
+  /* Lavender border */
+  border-radius: 3px;
 }
 
 /* Indicators */
 #battery.charging {
-    color: @charging;
+  color: @charging;
 }
 
 #battery.warning:not(.charging) {
-    color: @warning;
-    animation: blink-warning 1s infinite steps(2);
+  color: @warning;
+  animation: blink-warning 1s infinite steps(2);
 }
 
 #battery.critical:not(.charging) {
-    color: @critical;
-    animation: blink-critical 0.5s infinite steps(2);
+  color: @critical;
+  animation: blink-critical 0.5s infinite steps(2);
 }
 
 #disk.critical,
 #temperature.critical {
-    background-color: @critical;
-    color: @base;
+  background-color: @critical;
+  color: @base;
 }
 
 #disk.warning,
 #temperature.warning {
-    background-color: @warning;
-    color: @base;
+  background-color: @warning;
+  color: @base;
 }
 
 /* Tray */
 #tray {
-    padding: 0 6px;
+  padding: 0 6px;
 }
 
-#tray > .passive {
-    -gtk-icon-effect: dim;
+#tray>.passive {
+  -gtk-icon-effect: dim;
 }
 
-#tray > .needs-attention {
-    -gtk-icon-effect: highlight;
-    background-color: @love;
+#tray>.needs-attention {
+  -gtk-icon-effect: highlight;
+  background-color: @love;
 }
 
 /* Tooltip */
 tooltip {
-    background: @base;
-    border: 1px solid @highlight-med;
-    border-radius: 8px;
-    padding: 6px 10px;
+  background: @base;
+  border: 1px solid @highlight-med;
+  border-radius: 8px;
+  padding: 6px 10px;
 }
 
 tooltip label {
-    color: @text;
-    font-size: 13px;
+  color: @text;
+  font-size: 13px;
 }
 
 /* Module Specific Styling */
 #network {
-    color: @foam;
+  color: @foam;
 }
 
 #pulseaudio {
-    color: @pine;
+  color: @pine;
 }
 
 #pulseaudio.muted {
-    color: @muted;
+  color: @muted;
 }
 
 #memory {
-    color: @iris;
+  color: @iris;
 }
 
 #cpu {
-    color: @rose;
+  color: @rose;
 }
 
 #temperature {
-    color: @gold;
+  color: @gold;
 }
 
 #custom-updates {
-    color: @love;
+  color: @love;
 }
 
 #language {
-    color: @iris;
-    min-width: 36px;
+  color: @iris;
+  min-width: 36px;
 }
-
-

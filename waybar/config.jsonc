@@ -6,14 +6,13 @@
   "passthrough": false,
   "gtk-layer-shell": true,
   "height": 36,
-  "spacing": 4,
+  "spacing": 5,
   "margin-top": 0,
   "margin-bottom": 0,
   "margin-right": 8,
   "margin-left": 8,
   "modules-left": [
     "custom/launcher",
-    "custom/updates",
     "custom/power_profile",
     "wlr/taskbar",
     "hyprland/workspaces"
@@ -24,11 +23,9 @@
   "modules-right": [
     "tray",
     "battery",
-    "pulseaudio",
-    "cpu",
-    "memory",
-    "temperature",
     "network",
+    "cpu",
+    "temperature",
     "custom/lock_screen"
   ],
   "custom/power_profile": {
@@ -50,15 +47,6 @@
     "format": "<span font='12'>🔔</span>",
     "on-click": "swaync-client -t",
     "tooltip": false
-  },
-  "custom/updates": {
-    "format": "{}",
-    "exec": "~/.config/waybar/scripts/update-sys",
-    "on-click": "~/.config/waybar/scripts/update-sys update",
-    "interval": 3600,
-    "tooltip": true,
-    "signal": 8,
-    "return-type": "json"
   },
   "hyprland/workspaces": {
     "on-click": "activate",
@@ -107,15 +95,6 @@
     "max-length": 10,
     "tooltip": false
   },
-  "memory": {
-    "interval": 30,
-    "format": " {percentage}%",
-    "format-alt": "",
-    "max-length": 10,
-    "tooltip": true,
-    "tooltip-format": "Memory - {used:0.1f}GB used",
-    "on-click": "gnome-system-monitor"
-  },
   "temperature": {
     "thermal-zone": 5,
     "format": " {temperatureC}°C",
@@ -145,32 +124,14 @@
     "on-click": "kitty -e sh -c 'upower -i /org/freedesktop/UPower/devices/battery_BAT0; echo Press ENTER to close...; read'",
     "tooltip": false
   },
-  "pulseaudio": {
-    "format-muted": "",
-    "format-alt": "{icon}",
-    "on-click": "pavucontrol",
-    "scroll-step": 5,
-    "format-icons": {
-      "headphone": "",
-      "hands-free": "",
-      "headset": "",
-      "default": [
-        "",
-        "",
-        ""
-      ]
-    },
-    "tooltip": false
-  },
   "network": {
-    "format-wifi": " {signalStrength}%",
-    "format-ethernet": "",
-    "format-disconnected": "",
-    "format-alt": "{essid}",
-    "tooltip-format": " {ifname} via {gwaddr}",
-    "tooltip-format-wifi": " {essid} ({signalStrength}%)",
-    "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr}",
-    "tooltip-format-disconnected": "Disconnected",
+    "interface": "wlan0",
+    "format-wifi": "  ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
+    "format-ethernet": " {ifname} ↓{bandwidthDownBytes B/s ↑{bandwidthUpBytes}B/s",
+    "format-disconnected": " Disconnected",
+    "tooltip-format": " {ifname} via {gwaddr} ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
+    "tooltip-format-wifi": "  ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
+    "tooltip-format-ethernet": " {ifname} {ipaddr}/{cidr} ↓{bandwidthDownBytes} B/s ↑{bandwidthUpBytes} B/s",
     "max-length": 50,
     "on-click": "kitty -e nmtui"
   },
