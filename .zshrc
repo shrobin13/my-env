@@ -55,9 +55,10 @@ autoload -U select-word-style && zle -N fzf-file-widget
 bindkey '^O' fzf-file-widget
 
 #### ── Aliases ──────────────────────────────────────
-alias ll='ls -lah --color=auto'
-alias la='ls -A'
-alias l='ls -CF'
+alias ll='lsd -lah --color=auto'
+alias la='lsd -A'
+alias l='lsd -a'
+alias ls='lsd'
 alias please='sudo $(history -p !!)'
 alias vim="nvim"
 
@@ -121,6 +122,12 @@ stop_lamp() {
   echo "⏹ Stopping Apache (httpd) and MariaDB…"
   sudo systemctl stop httpd   && echo "  🛑 Apache stopped"
   sudo systemctl stop mariadb && echo "  🛑 MariaDB stopped"
+}
+
+status_lamp() {
+  echo "🔍 LAMP Status:"
+  systemctl is-active --quiet httpd && echo "  ✅ Apache is running" || echo "  ❌ Apache is not running"
+  systemctl is-active --quiet mariadb && echo "  ✅ MariaDB is running" || echo "  ❌ MariaDB is not running"
 }
 #--------------------------------------------------------------------------
 # ~/.zshrc  – smart yt-dlp helper
@@ -233,6 +240,69 @@ fbrew() {
 
   (( ${#formulas[@]} )) && brew install "${formulas[@]}"
   (( ${#casks[@]}    )) && brew install --cask "${casks[@]}"
+}
+
+
+#--------------------------------------------------------------------------
+# ~/.zshrc  — fuzzy-yay installer
+#--------------------------------------------------------------------------
+
+
+fpac() {
+  command -v fzf >/dev/null 2>&1 || {
+    echo "⚠️  fzf is not installed. Install it first (pacman -S fzf)." >&2
+    return 1
+  }
+
+  command -v yay >/dev/null 2>&1 || {
+    echo "⚠️  yay is not installed. Install it first (pacman -S yay)." >&2
+    return 1
+  }
+
+  # Get package list from pacman and yay
+  local _list
+  _list=$(
+    {
+      pacman -Slq | sort -u | sed 's/^/pacman:/'
+      yay -Slq | sort -u | sed 's/^/aur:/'
+    } 2>/dev/null | sort -u
+  ) || {
+    echo "⚠️  Failed to get package list. Check pacman and yay installation." >&2
+    return 1
+  }
+
+  [[ -z "$_list" ]] && {
+    echo "⚠️  No packages found."
+    return 1
+  }
+
+  # Select packages using fzf
+  local sel
+  sel=$(printf '%s\n' "$_list" |
+    fzf --multi --height=40% --reverse --prompt='fpac> ' --border \
+        --preview='
+          if [[ {} == pacman:* ]]; then
+            pacman -Si "$(echo {} | sed "s/^pacman://")"
+          else
+            yay -Si "$(echo {} | sed "s/^aur://")"
+          fi
+        ' --preview-window=right,70%) || return
+
+  [[ -z $sel ]] && return
+
+  # Separate into repo and aur packages
+  local -a pacman_pkgs aur_pkgs
+  while IFS= read -r line; do
+    if [[ $line == pacman:* ]]; then
+      pacman_pkgs+=("${line#pacman:}")
+    else
+      aur_pkgs+=("${line#aur:}")
+    fi
+  done <<< "$sel"
+
+  # Install packages
+  (( ${#pacman_pkgs[@]} )) && sudo pacman -S "${pacman_pkgs[@]}"
+  (( ${#aur_pkgs[@]}    )) && yay -S "${aur_pkgs[@]}"
 }
 
 # -----------------------------------------------------
