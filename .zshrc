@@ -248,7 +248,7 @@ fbrew() {
 #--------------------------------------------------------------------------
 
 
-fpac() {
+finpac() {
   command -v fzf >/dev/null 2>&1 || {
     echo "⚠️  fzf is not installed. Install it first (pacman -S fzf)." >&2
     return 1
@@ -279,7 +279,7 @@ fpac() {
   # Select packages using fzf
   local sel
   sel=$(printf '%s\n' "$_list" |
-    fzf --multi --height=40% --reverse --prompt='fpac> ' --border \
+    fzf --multi --height=40% --reverse --prompt='finpac> ' --border \
         --preview='
           if [[ {} == pacman:* ]]; then
             pacman -Si "$(echo {} | sed "s/^pacman://")"
