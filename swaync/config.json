@@ -67,8 +67,16 @@
       "button-size": 48,
       "actions": [
         {
+          "label": "󰂯",
+          "command": "blueman-manager && swaync-client -rs"
+        },
+        {
           "label": "",
           "command": "hyprlock"
+        },
+        {
+          "label": "󰜉",
+          "command": "systemctl reboot && swaync-client -rs"
         },
         {
           "label": "",

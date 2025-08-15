@@ -1,6 +1,6 @@
 * {
-  font-family: "Fira Sans Semibold", sans-serif;
-  font-size: 13px;
+  font-family: "JetBrainsMono Nerd Font", sans-serif;
+  font-size: 14px;
 }
 
 /* Rose Pine color palette */
@@ -22,13 +22,11 @@
 .control-center {
   background: @base;
   border: 2px solid @highlight;
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 4px;
+  padding: 12px;
   min-width: 380px;
-  max-width: 420px;
-  box-shadow:
-    0px 4px 30px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px fade(@text, 5%);
+  /* max-width removed — GTK does not support it */
+  box-shadow: 0px 4px 20px alpha(@text, 0.05);
   margin: 10px;
 }
 
@@ -39,27 +37,23 @@
   color: @iris;
   margin: 8px 0;
   padding-bottom: 6px;
-  border-bottom: 1px solid fade(@pine, 30%);
+  border-bottom: 1px solid alpha(@pine, 0.3);
 }
 
 /* Notification cards */
 .notification {
   background: @surface;
   border: 1px solid @highlight;
-  border-radius: 10px;
+  border-radius: 1px;
   padding: 14px;
   margin-bottom: 12px;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.3),
-    inset 0 0 0 1px fade(@text, 3%);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 2px 8px alpha(@text, 0.1);
+  transition: 150ms ease-in-out;
 }
 
 .notification:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.4),
-    inset 0 0 0 1px fade(@text, 5%);
+  background: alpha(@surface, 0.95);
+  box-shadow: 0 4px 12px alpha(@text, 0.15);
 }
 
 /* Buttons */
@@ -67,21 +61,16 @@ button {
   background: @overlay;
   color: @text;
   border: none;
-  border-radius: 8px;
+  border-radius: 1px;
   padding: 8px 12px;
   margin: 2px;
   min-width: 36px;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease,
-    transform 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: background 150ms ease-in-out, color 150ms ease-in-out;
 }
 
 button:hover {
   background: @pine;
   color: @base;
-  transform: scale(1.05);
 }
 
 /* Special button states */
@@ -96,11 +85,11 @@ button:hover {
   background: @overlay;
   color: @subtle;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 1px;
   min-width: 24px;
   min-height: 24px;
   margin: 6px 8px 0 0;
-  transition: all 0.2s ease;
+  transition: background 150ms ease-in-out, color 150ms ease-in-out;
 }
 
 .close-button:hover {
