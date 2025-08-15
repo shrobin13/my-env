@@ -21,12 +21,6 @@
   "hide-on-clear": true,
   "hide-on-action": true,
   "script-fail-notify": true,
-  "scripts": {
-    "volume-change": {
-      "exec": "bash -c \"notify-send '🔊 Volume' '$(wpctl get-volume @DEFAULT_AUDIO_SINK@)'\"",
-      "urgency": "Normal"
-    }
-  },
   "notification-visibility": {
     "music-player": {
       "state": "enabled",
