@@ -133,65 +133,100 @@ status_lamp() {
 # ~/.zshrc  – smart yt-dlp helper
 #--------------------------------------------------------------------------
 download() {
-  # default settings
+  # ── Default settings ─────────────────────────────
   local PLAYLIST=0 AUDIO=0 SUBS=0
-  local OUT_DIR="$HOME/Downloads"
-  local URL OPTS FORMAT
+  local OUT_DIR="$HOME/Videos/"
+  local URL="" OPTS=() FORMAT=""
 
-  # -------- argument parser ---------------------------------------------
+  # ── Dependency check ─────────────────────────────
+  if ! command -v yt-dlp >/dev/null 2>&1; then
+    echo -e "⚠️  \033[1;31myt-dlp is not installed\033[0m"
+    return 1
+  fi
+  if ! command -v notify-send >/dev/null 2>&1; then
+    echo -e "ℹ️  \033[1;33mnotify-send not found\033[0m — notifications disabled"
+  fi
+
+  # ── Argument parser ──────────────────────────────
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      -p|--playlist)      PLAYLIST=1 ;;
-      -a|--audio)         AUDIO=1   ;;
-      -s|--subs)          SUBS=1    ;;
-      -d|--dir)           OUT_DIR="$2"; shift ;;
+      -p|--playlist) PLAYLIST=1 ;;
+      -a|--audio)    AUDIO=1 ;;
+      -s|--subs)     SUBS=1 ;;
+      -d|--dir)
+        [[ -n $2 ]] || { echo "❌ Missing folder after $1"; return 1; }
+        OUT_DIR="$2"; shift ;;
       -h|--help)
         cat <<EOF
-Usage: ytdlp [options] <url>
+Usage: download [options] <url>
 
 Options:
-  -p, --playlist        treat URL as playlist, keep files numbered from 0
-  -a, --audio           audio-only (extract best track, convert to mp3)
-  -s, --subs            download & embed subtitles (all languages)
-  -d, --dir <folder>    custom download folder (default: $HOME/Downloads)
+  -p  --playlist   Download full playlist
+  -a  --audio      Audio-only (MP3)
+  -s  --subs       Download + embed all subtitles
+  -d  --dir <dir>  Save to custom directory
 EOF
         return 0 ;;
-      *) URL="$1" ;;
+      -*)
+        echo "❌ Unknown option: $1" >&2
+        return 1 ;;
+      *)
+        URL="$1" ;;
     esac
     shift
   done
-  [[ -z $URL ]] && { echo "ytdlp: no URL given" >&2; return 1; }
 
-  # -------- generic switches --------------------------------------------
-  OPTS=(-P "$OUT_DIR"                        # custom target directory :contentReference[oaicite:0]{index=0}
-        --embed-metadata --embed-thumbnail )
+  [[ -z $URL ]] && { echo "❌ No URL provided"; return 1; }
 
-  # playlist vs single video +  zero-based numbering
+  # ── Output + Metadata ─────────────────────────────
+  OPTS+=(-P "$OUT_DIR" --embed-metadata --embed-thumbnail --ignore-errors)
+
   if (( PLAYLIST )); then
-    OPTS+=(-o "%(playlist_title)s/%(playlist_index-1)03d - %(title)s.%(ext)s")  # arithmetic field ops :contentReference[oaicite:1]{index=1}
+    OPTS+=(-o "%(playlist_title)s/%(playlist_index)03d - %(title)s.%(ext)s")
   else
     OPTS+=(--no-playlist -o "%(title)s.%(ext)s")
   fi
 
-  # audio-only
+  # ── Format selection ──────────────────────────────
   if (( AUDIO )); then
     FORMAT="bestaudio"
-    OPTS+=(-x --audio-format mp3)            # extract+convert to MP3  :contentReference[oaicite:2]{index=2}
+    OPTS+=(-x --audio-format mp3)
   else
-    FORMAT="bestvideo[height<=1080]+bestaudio/best"
+    # fallback format for HTTP 403 errors
+    FORMAT="bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
   fi
   OPTS+=(-f "$FORMAT")
 
-  # subtitles
-  (( SUBS )) && OPTS+=(--write-subs --sub-langs all --embed-subs)  # :contentReference[oaicite:3]{index=3}
+  # ── Subtitles ─────────────────────────────────────
+  (( SUBS )) && OPTS+=(--write-subs --sub-langs all --embed-subs)
 
-  # fancy progress & desktop notification
-  OPTS+=(--progress            # force progress even if quiet
-        --progress-template "download:%(progress._percent_str)s of %(progress._total_bytes_str)s │ ETA %(progress.eta)s"  # :contentReference[oaicite:4]{index=4}
-        --exec "after_move:notify-send '✅ yt-dlp' 'Finished: %(info.title)s'")   # :contentReference[oaicite:5]{index=5}
+  # ── Fancy progress ───────────────────────────────
+  local BORDER="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  OPTS+=(
+    --progress
+    --progress-template "
+\033[1;36m$BORDER\033[0m
+📥  \033[1;37mDownloading:\033[0m %(title)s
+💾  \033[1;37mSize:\033[0m %(progress._total_bytes_str)s
+📊  \033[1;37mProgress:\033[0m %(progress._percent_str)s │ ETA %(progress._eta_str)s
+\033[1;36m$BORDER\033[0m
+"
+  )
 
-  # -------- run yt-dlp ---------------------------------------------------
-  yt-dlp "${OPTS[@]}" "$URL"
+  # ── Desktop notification after download ──────────
+  if command -v notify-send >/dev/null 2>&1; then
+    OPTS+=(--exec "notify-send '✅ Download Complete' '🎬 %(title)s' --icon=video-x-generic")
+  fi
+
+  # ── Run yt-dlp for multiple URLs ─────────────────
+  if [[ $URL == *" "* ]]; then
+    # multiple URLs passed as space-separated
+    for u in $URL; do
+      yt-dlp "${OPTS[@]}" "$u" 2> >(grep -v "HTTP Error 403")
+    done
+  else
+    yt-dlp "${OPTS[@]}" "$URL" 2> >(grep -v "HTTP Error 403")
+  fi
 }
 
 
@@ -247,50 +282,64 @@ fbrew() {
 # ~/.zshrc  — fuzzy-yay installer
 #--------------------------------------------------------------------------
 
-
 finpac() {
-  command -v fzf >/dev/null 2>&1 || {
-    echo "⚠️  fzf is not installed. Install it first (pacman -S fzf)." >&2
-    return 1
-  }
+  # Check dependencies
+  for dep in fzf yay pacman; do
+    if ! command -v "$dep" >/dev/null 2>&1; then
+      echo -e "⚠️  \033[1;31m$dep is not installed\033[0m. Install it first."
+      case "$dep" in
+        fzf)    echo "    sudo pacman -S fzf" ;;
+        yay)    echo "    sudo pacman -S yay" ;;
+        pacman) echo "    You're missing pacman? Are you even on Arch? 🤨" ;;
+      esac
+      return 1
+    fi
+  done
 
-  command -v yay >/dev/null 2>&1 || {
-    echo "⚠️  yay is not installed. Install it first (pacman -S yay)." >&2
-    return 1
-  }
-
-  # Get package list from pacman and yay
+  # Fetch package lists
   local _list
   _list=$(
     {
-      pacman -Slq | sort -u | sed 's/^/pacman:/'
-      yay -Slq | sort -u | sed 's/^/aur:/'
-    } 2>/dev/null | sort -u
-  ) || {
-    echo "⚠️  Failed to get package list. Check pacman and yay installation." >&2
-    return 1
-  }
+      pacman -Slq 2>/dev/null | sort -u | sed 's/^/pacman:/'
+      yay -Slq 2>/dev/null     | sort -u | sed 's/^/aur:/'
+    } | sort -u
+  )
 
-  [[ -z "$_list" ]] && {
-    echo "⚠️  No packages found."
+  if [[ -z "$_list" ]]; then
+    echo -e "⚠️  \033[1;33mNo packages found.\033[0m"
     return 1
-  }
+  fi
 
-  # Select packages using fzf
+  # ASCII preview header
+  local ascii_border="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # Let user select
   local sel
   sel=$(printf '%s\n' "$_list" |
-    fzf --multi --height=40% --reverse --prompt='finpac> ' --border \
-        --preview='
-          if [[ {} == pacman:* ]]; then
-            pacman -Si "$(echo {} | sed "s/^pacman://")"
+    fzf --multi --height=40% --reverse \
+        --prompt='🔍 Search packages > ' --border --ansi \
+        --preview="
+          pkg_type=\$(echo {} | cut -d: -f1)
+          pkg_name=\$(echo {} | cut -d: -f2-)
+
+          echo -e '\033[1;36m$ascii_border\033[0m'
+          echo -e '📦 \033[1;37mPackage:\033[0m' \$pkg_name
+          echo -e '📂 \033[1;37mSource:\033[0m' \$pkg_type
+          echo -e '\033[1;36m$ascii_border\033[0m'
+
+          if [[ \$pkg_type == pacman ]]; then
+            pacman -Si \$pkg_name
           else
-            yay -Si "$(echo {} | sed "s/^aur://")"
+            yay -Si \$pkg_name
           fi
-        ' --preview-window=right,70%) || return
+
+          echo -e '\033[1;36m$ascii_border\033[0m'
+        " \
+        --preview-window=right,70%) || return
 
   [[ -z $sel ]] && return
 
-  # Separate into repo and aur packages
+  # Separate into repo & AUR
   local -a pacman_pkgs aur_pkgs
   while IFS= read -r line; do
     if [[ $line == pacman:* ]]; then
@@ -300,11 +349,28 @@ finpac() {
     fi
   done <<< "$sel"
 
-  # Install packages
-  (( ${#pacman_pkgs[@]} )) && sudo pacman -S "${pacman_pkgs[@]}"
-  (( ${#aur_pkgs[@]}    )) && yay -S "${aur_pkgs[@]}"
-}
+  # Final confirmation with ASCII UI
+  echo -e "\n\033[1;32m════════════════════════════════════════════════════════════════════════════\033[0m"
+  echo -e "📦  \033[1;37mReady to install:\033[0m"
+  [[ ${#pacman_pkgs[@]} -gt 0 ]] && echo -e "   🏛  From Repo:  \033[1;36m${pacman_pkgs[*]}\033[0m"
+  [[ ${#aur_pkgs[@]}    -gt 0 ]] && echo -e "   🚀  From AUR :  \033[1;35m${aur_pkgs[*]}\033[0m"
+  echo -e "\033[1;32m════════════════════════════════════════════════════════════════════════════\033[0m"
+  
+  
+  printf "✅ Proceed with installation? [y/N]: "
+  read ans
+  [[ $ans =~ ^[Yy]$ ]] || { echo "❌ Installation cancelled."; return; }
 
+  # Install
+  (( ${#pacman_pkgs[@]} )) && sudo pacman -S --needed "${pacman_pkgs[@]}"
+  (( ${#aur_pkgs[@]}    )) && yay -S --needed "${aur_pkgs[@]}"
+
+  # Notification
+  if command -v notify-send >/dev/null 2>&1; then
+    notify-send "Finpac" "🎉 Installation complete!" --icon=software-update-available
+  fi
+  echo -e "🎉 \033[1;32mInstallation complete!\033[0m"
+}
 # -----------------------------------------------------
 # END OF FILE
 # -----------------------------------------------------
