@@ -1,0 +1,184 @@
+/* ────────────────
+   Hyprswitch Rose Pine Deluxe+ (Polished & Fixed)
+   ──────────────── */
+
+/* Base colors */
+@define-color base #191724;
+@define-color surface #1f1d2e;
+@define-color overlay #26233a;
+@define-color muted #6e6a86;
+@define-color subtle #908caa;
+@define-color text #e0def4;
+@define-color love #eb6f92;
+@define-color gold #f6c177;
+@define-color rose #ebbcba;
+@define-color pine #31748f;
+@define-color foam #9ccfd8;
+@define-color iris #c4a7e7;
+
+@define-color highlight-low #21202e;
+@define-color highlight-med #403d52;
+@define-color highlight-high #524f67;
+
+/* Workspace states (added) */
+@define-color workspace-active #9ccfd8;
+@define-color workspace-inactive @muted;
+@define-color workspace-hover @iris;
+@define-color workspace-urgent @love;
+
+/* Animations */
+@keyframes entry-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(156, 207, 216, 0.25);
+  }
+
+  50% {
+    box-shadow: 0 0 14px rgba(196, 167, 231, 0.55);
+  }
+}
+
+@keyframes urgent-flash {
+
+  0%,
+  100% {
+    background: @workspace-urgent;
+  }
+
+  50% {
+    background: @highlight-high;
+  }
+}
+
+/* ────────────────
+   Root container
+   ──────────────── */
+window {
+  background: alpha(@base, 0.88);
+  border-radius: 6px;
+  padding: 4px;
+  border: 1px solid alpha(@iris, 0.5);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  transition: all 200ms ease-in-out;
+}
+
+/* Title (App name) */
+.label {
+  color: @text;
+  font-family: "JetBrainsMono Nerd Font", "Fira Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* App entry */
+.entry {
+  background: alpha(@surface, 0.85);
+  border-radius: 10px;
+  padding: 10px;
+  margin: 6px;
+  border: 1px solid alpha(@highlight-med, 0.6);
+  transition: all 180ms ease;
+  animation: entry-pop 0.25s ease;
+}
+
+.entry:hover {
+  background: @highlight-med;
+  border-color: @foam;
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 4px 12px rgba(156, 207, 216, 0.35);
+}
+
+/* Selected entry (focus) */
+.entry:selected,
+.entry:focus {
+  background: alpha(@overlay, 0.9);
+  border: 2px solid @foam;
+  color: @text;
+  animation: glow-pulse 2s infinite;
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 0 12px alpha(@foam, 0.55);
+}
+
+/* Window title inside the entry */
+.entry .title {
+  color: @subtle;
+  font-size: 12.5px;
+  margin-top: 4px;
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.entry:selected .title {
+  color: @foam;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* Workspace indicators */
+.workspace {
+  background: alpha(@overlay, 0.65);
+  border-radius: 5px;
+  margin: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: @workspace-inactive;
+  border: 1px solid alpha(@highlight-med, 0.7);
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.workspace.active {
+  background: alpha(@foam, 0.25);
+  color: @foam;
+  font-weight: 600;
+  border: 1px solid @foam;
+  box-shadow: 0 0 10px alpha(@foam, 0.55);
+}
+
+.workspace.urgent {
+  background: @workspace-urgent;
+  color: @base;
+  font-weight: 600;
+  animation: urgent-flash 1s infinite;
+}
+
+.workspace:hover {
+  background: alpha(@iris, 0.25);
+  color: @iris;
+  transform: scale(1.05);
+  box-shadow: 0 3px 10px rgba(196, 167, 231, 0.35);
+}
+
+/* Number hint (badge style) */
+.number-hint {
+  background: @highlight-high;
+  color: @text;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin-left: 6px;
+  opacity: 0.9;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.number-hint:hover {
+  opacity: 1;
+  transform: scale(1.08);
+}
