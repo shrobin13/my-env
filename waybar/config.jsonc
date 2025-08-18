@@ -98,7 +98,7 @@
     ]
   },
   "temperature": {
-    "thermal-zone": 5,
+    "thermal-zone": 6,
     "format": "<span color='#f6c177'></span> {temperatureC}°C",
     "format-alt": "<span color='#31748f'></span>",
     "critical-threshold": 70,
