@@ -110,28 +110,60 @@ unsetopt beep
 # ────────────────────────────────────────────────
 # LAMP helper functions (Apache + MariaDB)
 # ────────────────────────────────────────────────
+
 start_lamp() {
   echo "▶ Starting Apache (httpd) and MariaDB…"
-  sudo systemctl start httpd  && echo "  ✅ Apache started"
-  sudo systemctl start mariadb && echo "  ✅ MariaDB started"
+  
+  sudo systemctl enable --now httpd.service
+  if systemctl is-active --quiet httpd; then
+    echo "  ✅ Apache started"
+  else
+    echo "  ❌ Failed to start Apache"
+  fi
+
+  sudo systemctl enable --now mariadb.service
+  if systemctl is-active --quiet mariadb; then
+    echo "  ✅ MariaDB started"
+  else
+    echo "  ❌ Failed to start MariaDB"
+  fi
+
   echo "  🌐 Browse  : http://localhost/   (site root)"
   echo "  🔐 phpMyAdmin: http://localhost/phpmyadmin/"
 }
 
 stop_lamp() {
   echo "⏹ Stopping Apache (httpd) and MariaDB…"
-  sudo systemctl stop httpd   && echo "  🛑 Apache stopped"
-  sudo systemctl stop mariadb && echo "  🛑 MariaDB stopped"
+
+  sudo systemctl stop httpd.service
+  sudo systemctl disable httpd.service
+  echo "  🛑 Apache stopped"
+
+  sudo systemctl stop mariadb.service
+  sudo systemctl disable mariadb.service
+  echo "  🛑 MariaDB stopped"
 }
 
 status_lamp() {
   echo "🔍 LAMP Status:"
-  systemctl is-active --quiet httpd && echo "  ✅ Apache is running" || echo "  ❌ Apache is not running"
-  systemctl is-active --quiet mariadb && echo "  ✅ MariaDB is running" || echo "  ❌ MariaDB is not running"
+
+  if systemctl is-active --quiet httpd; then
+    echo "  ✅ Apache (httpd) is running"
+  else
+    echo "  ❌ Apache (httpd) is not running"
+  fi
+
+  if systemctl is-active --quiet mariadb; then
+    echo "  ✅ MariaDB is running"
+  else
+    echo "  ❌ MariaDB is not running"
+  fi
 }
+
 #--------------------------------------------------------------------------
 # ~/.zshrc  – smart yt-dlp helper
 #--------------------------------------------------------------------------
+
 download() {
   # ── Default settings ─────────────────────────────
   local PLAYLIST=0 AUDIO=0 SUBS=0
@@ -228,6 +260,7 @@ EOF
     yt-dlp "${OPTS[@]}" "$URL" 2> >(grep -v "HTTP Error 403")
   fi
 }
+
 
 
 #--------------------------------------------------------------------------
