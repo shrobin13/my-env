@@ -21,7 +21,7 @@ power-saver)
   label="Saver"
   ;;
 balanced)
-  icon=""        # sync icon
+  icon=" "       # sync icon
   color="#61afef" # blue-ish
   label="Balanced"
   ;;
