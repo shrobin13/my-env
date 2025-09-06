@@ -225,7 +225,7 @@ EOF
     OPTS+=(-x --audio-format mp3)
   else
     # fallback format for HTTP 403 errors
-    FORMAT="bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"
+    FORMAT="bestvideo[height>=720]+bestaudio/best[height>=720]/best"
   fi
   OPTS+=(-f "$FORMAT")
 

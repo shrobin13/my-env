@@ -81,8 +81,7 @@ window#waybar {
   background: rgba(31, 29, 46, 0.35);
   border-radius: 2px;
   margin: 4px 0;
-  border: 1px solid rgba(203, 166, 247, 0.6);
-  /* Lavender border */
+  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
   padding: 0 4px;
 }
 
@@ -115,10 +114,11 @@ window#waybar {
 }
 
 #workspaces button.active {
-  border: 1px solid rgba(203, 166, 247, 0.6);
+  border: 1px solid rgba(90,120,120,1); /* updated border color */
   color: @text;
   font-weight: 600;
 }
+
 
 #workspaces button.urgent {
   background: @workspace-urgent;
@@ -151,7 +151,7 @@ window#waybar {
 /* Active Window */
 #taskbar button.active {
   background: rgba(25, 23, 36, 0.3);
-  border: 1px solid rgba(203, 166, 247, 0.5);
+  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
   color: @text;
   font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -222,8 +222,7 @@ window#waybar {
   font-weight: 600;
   padding: 0 16px;
   margin: 4px 0;
-  border: 1px solid rgba(203, 166, 247, 0.6);
-  /* Lavender border */
+  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
   border-radius: 3px;
 }
 

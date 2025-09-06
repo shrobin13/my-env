@@ -1,117 +1,151 @@
 
-
-/**
- * Rose Pine — Clean, Minimal Rofi theme
+/*
+ * Rose Pine Glass — Material Layout (Improved)
  */
 
-configuration {
-    font: "JetBrainsMono Nerd Font 12";
-    show-icons: true;
-    icon-theme: "Adwaita";     // or any installed icon theme
-    drun-display-format: "{icon}  {name}";
-    display-drun:   "";
-    display-run:    "";
-    display-window: "";
-    modi: "drun,run,window";
-    width: 30%;
-    lines: 8;
-    padding: 10px;
-    border-radius: 4px;
-    location: 0;
+* {
+    spacing: 0;
+    background-color: transparent;
 }
 
 /* --------------------------------------------------------------------- */
-
-
-/* ~/.config/rofi/rose‑pine‑glass.rasi */
+/* Window                                                                */
+/* --------------------------------------------------------------------- */
 window {
-    background-color: rgba(28,25,40,0.60);   /* slightly darker & 60% opaque */
+    transparency: "real";
+    background-color: rgba(28,25,40,0.60);   /* semi-glass overlay */
     border: 1px;
-    border-color: rgba(203,166,247,0.9);       /* darker border for contrast */
-    border-radius: 8px;
+    border-color: rgba(90,120,120,1);
+     /* iris glow */
+    border-radius: 4px;
     padding: 15px;
 }
 
+/* --------------------------------------------------------------------- */
+/* Main Layout                                                           */
+/* --------------------------------------------------------------------- */
 mainbox {
+    children: [inputbar, message, mode-switcher, listview];
+    spacing: 10px;
+    padding: 10px 0;
+    border: 0;
     background-color: transparent;
-    spacing: 8px;
-    children: [inputbar, listview];
 }
 
 /* ── Search bar ─────────────────────────────────────────────────────── */
-
 inputbar {
-    background-color: #26233a;   /* overlay */
-    border-radius: 6px;
-    padding: 6px 10px;
-    children: [textbox-prompt-colon, entry];
+    padding: 5px 18px;
+    background-color: rgba(90,50,60,0.3);
+  /* surface */
+    border-radius: 4px;
+    children: [prompt, textbox-prompt-colon, entry, case-indicator];
+}
+
+prompt {
+    text-color: #9ccfd8; /* foam */
 }
 
 textbox-prompt-colon {
-    text-color: #9ccfd8ff;      /* “foam” with full opacity */
     expand: false;
-    background-color: #26233a;   /* overlay */
-    str:"";       
-    margin: 0 6px 0 0;
-    padding: 2px 4px 2px 0;     /* add some horizontal padding for spacing */
+    str: "";
+    margin: 0 10px 0 0;
+    text-color: #9ccfd8;
 }
 
 entry {
-    background-color: rgba(0,0,0,0);
-    text-color: #e0def4;         /* text */
+    background-color: transparent;
+    text-color: #e0def4;   /* bright text */
     placeholder: "Search…";
 }
 
-/* ── Result list ────────────────────────────────────────────────────── */
-
-listview {
-    background-color: rgba(0,0,0,0);
-    spacing: 4px;
-    dynamic: true;
-    scrollbar: false;
+case-indicator {
+    text-color: #eb6f92; /* love */
 }
 
-element {
-    background-color: rgba(0,0,0,0);
-    border-radius: 4px;
-    padding: 5px 8px;
-    text-color: #e0def4;
-}
-
-/* row under cursor or keyboard focus */
-element normal active {
-    background-color: #2a273f;
-}
-
-/* chosen row */
-element selected {
-    background-color: #5a598c;   /* “iris” */
-}
-
-element-icon {
-    size: 18px;
-    padding: 0 8px 0 0;
-    background-color: rgba(0,0,0,0);
-}
-
-element-text {
-    background-color: rgba(0,0,0,0);
-    text-color: inherit;
-}
-
-/* ── Messages & errors ─────────────────────────────────────────────── */
-
-message {
-    background-color: #26233a;
+/* ── Mode switcher & messages ───────────────────────────────────────── */
+mode-switcher, message {
+    border: 0;
+    padding: 4px;
+    spacing: 6px; 
     border-radius: 6px;
-    padding: 6px;
+    background-color: rgba(50,45,60,0.5);
     text-color: #e0def4;
 }
 
 error-message {
-    background-color: #eb6f92;   /* “love” */
+    background-color: #eb6f92;
     border-radius: 6px;
     padding: 6px;
-    text-color: #191724;
+    text-color: #1c1928;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+button, textbox {
+    text-color: #e0def4;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+button selected {
+	  background-color: rgba(50,65,60,0.9);
+    text-color:  #FFFF;
+}
+
+/* ── Result list ────────────────────────────────────────────────────── */
+listview {
+    scrollbar: true;
+    margin: 0 12px 0 18px;
+    background-color: transparent;
+}
+
+scrollbar {
+	  background-color: rgba(50,60,60,0.6);
+    handle-color: rgba(50,80,80,1);
+    handle-width: 8px;
+    border: 0;
+    margin: 0 0 0 12px;
+    border-radius: 4px;
+}
+
+/* ── Elements (rows) ────────────────────────────────────────────────── */
+element {
+    padding: 8px 10px;
+    spacing: 8px;
+    border-radius: 6px;
+    children: [element-icon, element-text];
+}
+
+element normal {
+    background-color: transparent;
+    text-color: #e0def4; /* main text */
+}
+
+element-text {
+    text-color: #e0def4;
+}
+
+element-text sub {
+    text-color: #908caa; /* readable dim comment */
+    font-size: 0.9em;
+}
+
+element normal active {
+    // background-color: rgba(42,39,63,0.7);
+    text-color: #000000;
+}
+
+/* Active/Selected element */
+element selected {
+    background-color: rgba(50,70,60,0.9); /* lighter than window background */
+    text-color: #000000; /* keep dark text */
+}
+
+element selected element-text sub {
+    text-color: #000000; /* darker dim on selection */
+}
+
+element normal urgent,
+element selected urgent {
+    text-color: #000000;
 }
 
