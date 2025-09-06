@@ -13,7 +13,7 @@
 /* --------------------------------------------------------------------- */
 window {
     transparency: "real";
-    background-color: rgba(28,25,40,0.60);   /* semi-glass overlay */
+    background-color: rgba(90,80,80,0.20);   /* semi-glass overlay */
     border: 1px;
     border-color: rgba(90,120,120,1);
      /* iris glow */
@@ -68,7 +68,7 @@ mode-switcher, message {
     padding: 4px;
     spacing: 6px; 
     border-radius: 6px;
-    background-color: rgba(50,45,60,0.5);
+    background-color: rgba(50,60,60,0.5);
     text-color: #e0def4;
 }
 
@@ -87,7 +87,7 @@ button, textbox {
 }
 
 button selected {
-	  background-color: rgba(50,65,60,0.9);
+	  background-color: rgba(50,120,120,0.7);
     text-color:  #FFFF;
 }
 
