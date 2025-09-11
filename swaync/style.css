@@ -1,32 +1,30 @@
+
 * {
   font-family: "JetBrainsMono Nerd Font", sans-serif;
   font-size: 14px;
 }
 
-/* Rose Pine color palette */
-@define-color base #191724;
-@define-color surface #1f1d2e;
-@define-color overlay #26233a;
-@define-color muted #6e6a86;
-@define-color subtle #908caa;
-@define-color text #e0def4;
-@define-color love #eb6f92;
-@define-color gold #f6c177;
-@define-color rose #ebbcba;
-@define-color pine #31748f;
-@define-color foam #9ccfd8;
-@define-color iris #c4a7e7;
-@define-color highlight #403d52;
+/* Glass Material Color Palette (no-blur safe) */
+@define-color window-bg rgba(34, 34, 34, 0.95); /* charcoal */
+@define-color border rgba(90,120,120,0.8);       /* iris glow */
+@define-color surface rgba(90,50,60,0.25);       /* soft surface */
+@define-color overlay rgba(50,60,60,0.45);       /* overlay blocks */
+@define-color overlay-strong rgba(50,70,60,0.8); /* selection background */
+@define-color muted #908caa;                     /* dim text */
+@define-color text #e0def4;                      /* bright text */
+@define-color accent #9ccfd8;                    /* foam highlight */
+@define-color love #eb6f92;                      /* error/accent */
+@define-color subtle rgba(50,80,80,0.7);         /* scrollbar handle */
+@define-color highlight rgba(50,60,60,0.5);      /* scrollbar track */
 
 /* Main container */
 .control-center {
-  background: @base;
-  border: 2px solid @highlight;
+  background: @window-bg;
+  border: 1px solid @border;
   border-radius: 4px;
   padding: 12px;
   min-width: 380px;
-  /* max-width removed — GTK does not support it */
-  box-shadow: 0px 4px 20px alpha(@text, 0.05);
+  box-shadow: 0px 4px 20px alpha(@text, 0.08);
   margin: 10px;
 }
 
@@ -34,16 +32,16 @@
 .notification-group-header {
   font-size: 14px;
   font-weight: 600;
-  color: @iris;
+  color: @accent;
   margin: 8px 4px;
   padding-bottom: 6px;
-  border-bottom: 1px solid alpha(@pine, 0.3);
+  border-bottom: 1px solid alpha(@accent, 0.4);
 }
 
 /* Notification cards */
 .notification {
   background: @surface;
-  border: 1px solid @highlight;
+  border: 1px solid @border;
   border-radius: 4px;
   padding: 14px;
   margin-bottom: 12px;
@@ -52,7 +50,7 @@
 }
 
 .notification:hover {
-  background: alpha(@surface, 0.95);
+  background: alpha(@surface, 0.8);
   box-shadow: 0 4px 12px alpha(@text, 0.15);
 }
 
@@ -69,21 +67,20 @@ button {
 }
 
 button:hover {
-  background: @pine;
-  color: @base;
+  background: @accent;
+  color: black;
 }
 
 /* Special button states */
 .notification-default-action:hover,
 .notification-action:hover {
-  /* background: @love; */
   color: white;
 }
 
 /* Close button */
 .close-button {
   background: @overlay;
-  color: @subtle;
+  color: @muted;
   padding: 0;
   border-radius: 4px;
   min-width: 10px;
@@ -94,7 +91,7 @@ button:hover {
 
 .close-button:hover {
   background: @love;
-  color: white;
+  color: black;
 }
 
 /* Widget grid */
@@ -104,7 +101,8 @@ button:hover {
 }
 
 .widget-buttons-grid>flowbox>flowboxchild>button:hover {
-  background: @iris;
+  background: @accent;
+  color: black;
 }
 
 /* Progress bars */
@@ -115,7 +113,7 @@ trough {
 }
 
 progress {
-  background: @pine;
+  background: @accent;
 }
 
 trough {
@@ -134,13 +132,13 @@ slider trough {
 }
 
 slider highlight {
-  background: @foam;
+  background: @accent;
   border-radius: 2px;
 }
 
 /* Additional decorative elements */
 .notification-content {
-  color: @subtle;
+  color: @muted;
 }
 
 .notification-summary {
@@ -151,3 +149,4 @@ slider highlight {
 .notification-body {
   color: @muted;
 }
+
