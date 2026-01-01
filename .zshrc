@@ -211,7 +211,12 @@ EOF
   [[ -z $URL ]] && { echo "❌ No URL provided"; return 1; }
 
   # ── Output + Metadata ─────────────────────────────
-  OPTS+=(-P "$OUT_DIR" --embed-metadata --embed-thumbnail --ignore-errors)
+  OPTS+=(
+    -P "$OUT_DIR"
+    --embed-metadata
+    --embed-thumbnail
+    --ignore-errors
+  )
 
   if (( PLAYLIST )); then
     OPTS+=(-o "%(playlist_title)s/%(playlist_index)03d - %(title)s.%(ext)s")
@@ -224,7 +229,7 @@ EOF
     FORMAT="bestaudio"
     OPTS+=(-x --audio-format mp3)
   else
-    # fallback format for HTTP 403 errors
+    # fallback format for HTTP 403
     FORMAT="bestvideo[height>=720]+bestaudio/best[height>=720]/best"
   fi
   OPTS+=(-f "$FORMAT")
@@ -232,35 +237,35 @@ EOF
   # ── Subtitles ─────────────────────────────────────
   (( SUBS )) && OPTS+=(--write-subs --sub-langs all --embed-subs)
 
-  # ── Fancy progress ───────────────────────────────
+  # ── Fancy stable progress block ───────────────────
   local BORDER="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  # 5 lines total → must move 5 lines up on each refresh
   OPTS+=(
     --progress
     --progress-template "
 \033[1;36m$BORDER\033[0m
-📥  \033[1;37mDownloading:\033[0m %(title)s
+📥  \033[1;37mDownloading:\033[0m %(info.title)s
 💾  \033[1;37mSize:\033[0m %(progress._total_bytes_str)s
 📊  \033[1;37mProgress:\033[0m %(progress._percent_str)s │ ETA %(progress._eta_str)s
 \033[1;36m$BORDER\033[0m
-"
+\x1b[5A\r"
   )
 
-  # ── Desktop notification after download ──────────
+  # ── Desktop notification after completion ─────────
   if command -v notify-send >/dev/null 2>&1; then
-    OPTS+=(--exec "notify-send '✅ Download Complete' '🎬 %(title)s' --icon=video-x-generic")
+    OPTS+=(--exec "notify-send '✅ Download Complete' '%(title)s' --icon=video-x-generic")
   fi
 
   # ── Run yt-dlp for multiple URLs ─────────────────
   if [[ $URL == *" "* ]]; then
-    # multiple URLs passed as space-separated
     for u in $URL; do
-      yt-dlp "${OPTS[@]}" "$u" 2> >(grep -v "HTTP Error 403")
+      yt-dlp "${OPTS[@]}" "$u" 2> >(grep -v 'HTTP Error 403')
     done
   else
-    yt-dlp "${OPTS[@]}" "$URL" 2> >(grep -v "HTTP Error 403")
+    yt-dlp "${OPTS[@]}" "$URL" 2> >(grep -v 'HTTP Error 403')
   fi
 }
-
 
 
 #--------------------------------------------------------------------------

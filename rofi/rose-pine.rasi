@@ -13,7 +13,7 @@
 /* --------------------------------------------------------------------- */
 window {
     transparency: "real";
-    background-color: rgba(90,80,80,0.20);   /* semi-glass overlay */
+    background-color: rgba(20, 15, 15, 0.50);   /* semi-glass overlay */
     border: 1px;
     border-color: rgba(90,120,120,1);
      /* iris glow */
