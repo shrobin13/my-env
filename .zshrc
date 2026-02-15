@@ -30,7 +30,9 @@ export LC_ALL="en_US.UTF-8"
 path+=("$HOME/.local/bin" "$HOME/.cargo/bin" "$HOME/go/bin" "$HOME/.npm-global/bin" "$HOME/.composer/vendor/bin" "$HOME/.bun/bin")
 
 #### ── Homebrew (Linuxbrew) ─────────────────────────
+if [ -d /home/linuxbrew/.linuxbrew ]; then
   eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
 
 #### ── Zoxide (smart cd) ────────────────────────────
 if command -v zoxide >/dev/null 2>&1; then
@@ -45,13 +47,16 @@ fi
 source "$HOME/.zinit/bin/zinit.zsh"
 
 zinit light zsh-users/zsh-autosuggestions
-zinit light zsh-users/zsh-syntax-highlighting
 zinit light Aloxaf/fzf-tab
 zinit light zdharma-continuum/fast-syntax-highlighting
 
 #### ── Key-bindings & FZF widgets ───────────────────
 bindkey -v
-autoload -U select-word-style && zle -N fzf-file-widget
+autoload -U select-word-style
+# Source FZF keybindings if available
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+[ -f /usr/share/fzf/key-bindings.zsh ] && source /usr/share/fzf/key-bindings.zsh
+[ -f /usr/share/fzf/completion.zsh ] && source /usr/share/fzf/completion.zsh
 bindkey '^O' fzf-file-widget
 
 #### ── Aliases ──────────────────────────────────────
@@ -59,7 +64,7 @@ alias ll='lsd -lah --color=auto'
 alias la='lsd -A'
 alias l='lsd -a'
 alias ls='lsd'
-alias please='sudo $(history -p !!)'
+alias please='sudo $(fc -ln -1)'
 alias vim="nvim"
 
 # Git
