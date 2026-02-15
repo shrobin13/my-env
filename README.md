@@ -1,34 +1,28 @@
-# My Environment Project
+# My Env
 
-## Project Description
-This project is a comprehensive environment setup for development and deployment purposes. It contains configuration scripts, environment variables, and other essential resources that facilitate the development workflow.
-
-## Installation Instructions
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/shrobin13/my-env.git
-   cd my-env
-   ```
-2. Make sure to have the required dependencies installed.
-3. Run the setup script:
-   ```bash
-   ./setup.sh
-   ```
+This repository contains environment configuration scripts for setting up various development environments.
 
 ## Directory Structure
-```
-my-env/
-├── scripts/             # Contains all the installation scripts
-├── configs/             # Configuration files for different environments
-├── variables/           # Environment variable definitions
-└── README.md            # This README file
-```
 
-## System Requirements
-- Operating System: Linux or macOS
-- Bash version: 4.0 or higher
-- Python: 3.6 or higher (if applicable)
-- Node.js: 12 or higher (if applicable)
+- `install.sh` : The main script to install and configure your environment.
+- `configs/` : Contains configuration files for various setups.
+  - `docker/` : Docker-related configurations.
+  - `kubernetes/` : Kubernetes configurations.
+  - `python/` : Python-specific configurations.
+- `scripts/` : Additional helper scripts.  
 
 ## Usage
-After installation, you can use the scripts and configurations to set up your environment as needed. Refer to individual script documentation for specific usage instructions.
+
+To run the installation script:
+
+```bash
+bash install.sh
+```
+
+Make sure to review the configurations in the `configs/` directory before proceeding with the installation.
+
+## Contribution
+
+Feel free to fork this repository and submit a pull request if you have improvements or fixes!  
+
+Last updated: 2026-02-15 14:10:23 UTC
