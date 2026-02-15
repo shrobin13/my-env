@@ -137,7 +137,7 @@
   },
   // Network
   "network": {
-    "interval": 1,
+    "interval": 2,
     "interface": "wlan0",
     "format-wifi": "  ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}",
     "format-wifi-alt": "  {essid}",

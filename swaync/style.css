@@ -1,27 +1,37 @@
-
 * {
   font-family: "JetBrainsMono Nerd Font", sans-serif;
   font-size: 14px;
 }
 
 /* Glass Material Color Palette (no-blur safe) */
-@define-color window-bg rgba(34, 34, 34, 0.95); /* charcoal */
-@define-color border rgba(90,120,120,0.8);       /* iris glow */
-@define-color surface rgba(90,50,60,0.25);       /* soft surface */
-@define-color overlay rgba(50,60,60,0.45);       /* overlay blocks */
-@define-color overlay-strong rgba(50,70,60,0.8); /* selection background */
-@define-color muted #908caa;                     /* dim text */
-@define-color text #e0def4;                      /* bright text */
-@define-color accent #9ccfd8;                    /* foam highlight */
-@define-color love #eb6f92;                      /* error/accent */
-@define-color subtle rgba(50,80,80,0.7);         /* scrollbar handle */
-@define-color highlight rgba(50,60,60,0.5);      /* scrollbar track */
+@define-color window-bg rgba(34, 34, 34, 0.95);
+/* charcoal */
+@define-color border rgba(90, 120, 120, 0.8);
+/* iris glow */
+@define-color surface rgba(90, 50, 60, 0.25);
+/* soft surface */
+@define-color overlay rgba(50, 60, 60, 0.45);
+/* overlay blocks */
+@define-color overlay-strong rgba(50, 70, 60, 0.8);
+/* selection background */
+@define-color muted #908caa;
+/* dim text */
+@define-color text #e0def4;
+/* bright text */
+@define-color accent #9ccfd8;
+/* foam highlight */
+@define-color love #eb6f92;
+/* error/accent */
+@define-color subtle rgba(50, 80, 80, 0.7);
+/* scrollbar handle */
+@define-color highlight rgba(50, 60, 60, 0.5);
+/* scrollbar track */
 
 /* Main container */
 .control-center {
   background: @window-bg;
   border: 1px solid @border;
-  border-radius: 4px;
+  border-radius: 12px;
   padding: 12px;
   min-width: 380px;
   box-shadow: 0px 4px 20px alpha(@text, 0.08);
@@ -38,11 +48,22 @@
   border-bottom: 1px solid alpha(@accent, 0.4);
 }
 
+/* Increase the "hitbox" for sliders */
+scale trough {
+  min-height: 10px;
+  background: @highlight;
+  border-radius: 5px;
+}
+
+scale highlight {
+  background: @accent;
+}
+
 /* Notification cards */
 .notification {
   background: @surface;
   border: 1px solid @border;
-  border-radius: 4px;
+  border-radius: 10px;
   padding: 14px;
   margin-bottom: 12px;
   box-shadow: 0 2px 8px alpha(@text, 0.1);
@@ -149,4 +170,3 @@ slider highlight {
 .notification-body {
   color: @muted;
 }
-
