@@ -22,6 +22,7 @@
   "modules-center": [
     "cpu",
     "memory",
+    "temperature",
     "battery"
   ],
 
@@ -101,18 +102,16 @@
       "<span color='#b4637a'>█</span>" // wine red (max usage)
     ]
   },
-  // "temperature": {
-  //   "thermal-zone": 6,
-  //   "interval": 1,
-  //   "format": "<span color='#f6c177'></span> {temperatureC}°C",
-  //   "format-alt": "<span color='#31748f'></span>",
-  //   "critical-threshold": 70,
-  //   "format-critical": "<span color='#eb6f92'></span> {temperatureC}°C",
-  //   "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
-  //   "tooltip": false
-  // },
-
-
+  "temperature": {
+    "thermal-zone": 6,
+    "interval": 1,
+    "format": "<span color='#f6c177'></span> {temperatureC}°C",
+    "format-alt": "<span color='#31748f'></span>",
+    "critical-threshold": 70,
+    "format-critical": "<span color='#eb6f92'></span> {temperatureC}°C",
+    "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
+    "tooltip": false
+  },
   "memory": {
     "format": "🖫 {percentage}%",
     "max-length": 6,
