@@ -9,28 +9,32 @@
   "spacing": 6,
   "margin-top": 0,
   "margin-bottom": 0,
-  "margin-right": 8,
-  "margin-left": 8,
-  // Left: Launchers & Navigation
+  "margin-right": 1,
+  "margin-left": 1,
+
+// LEFT: The "Start" area
   "modules-left": [
     "custom/launcher",
+    "hyprland/workspaces",
+    "tray"
+  ],
+
+  // CENTER: Focus on status/metrics
+  "modules-center": [
+    "cpu",
+    "memory",
+    "temperature",
+    "battery"
+  ],
+
+  // RIGHT: The "System Tray" area
+  "modules-right": [
+    "custom/power_profile",
     "network",
+    "custom/lock_screen",
     "clock"
   ],
-  // Center: Time
-  "modules-center": [
-    "hyprland/workspaces"
-  ],
-  // Right: System status
-  "modules-right": [
-    "tray",
-    "battery",
-    "cpu",
-    // "temperature",
-    "memory",
-    "custom/power_profile",
-    "custom/lock_screen"
-  ],
+ 
   // Custom Modules
   "custom/launcher": {
     "format": "<span font='14'></span>",
@@ -98,18 +102,16 @@
       "<span color='#b4637a'>█</span>" // wine red (max usage)
     ]
   },
-  // "temperature": {
-  //   "thermal-zone": 6,
-  //   "interval": 1,
-  //   "format": "<span color='#f6c177'></span> {temperatureC}°C",
-  //   "format-alt": "<span color='#31748f'></span>",
-  //   "critical-threshold": 70,
-  //   "format-critical": "<span color='#eb6f92'></span> {temperatureC}°C",
-  //   "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
-  //   "tooltip": false
-  // },
-
-
+  "temperature": {
+    "thermal-zone": 6,
+    "interval": 1,
+    "format": "<span color='#f6c177'></span> {temperatureC}°C",
+    "format-alt": "<span color='#31748f'></span>",
+    "critical-threshold": 70,
+    "format-critical": "<span color='#eb6f92'></span> {temperatureC}°C",
+    "on-click": "kitty --hold ~/.config/waybar/scripts/show-temps.sh",
+    "tooltip": false
+  },
   "memory": {
     "format": "🖫 {percentage}%",
     "max-length": 6,
@@ -139,7 +141,7 @@
   "network": {
     "interval": 2,
     "interface": "wlan0",
-    "format-wifi": "  ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}",
+    "format-wifi": "   ↓{bandwidthDownBytes} ↑{bandwidthUpBytes}",
     "format-wifi-alt": "  {essid}",
     "format-ethernet": " {ifname}",
     "format-disconnected": "",
