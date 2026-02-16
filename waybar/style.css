@@ -23,12 +23,6 @@
 @define-color workspace-urgent @love;
 @define-color workspace-hover @foam;
 
-/* Module States */
-@define-color warning @gold;
-@define-color critical @love;
-@define-color charging @foam;
-@define-color discharging @text;
-
 /* Animation */
 @keyframes pulse {
   0% {
@@ -46,14 +40,14 @@
 
 @keyframes blink-warning {
   to {
-    background-color: @warning;
+    background-color: @gold;
     color: @base;
   }
 }
 
 @keyframes blink-critical {
   to {
-    background-color: @critical;
+    background-color: @love;
     color: @text;
   }
 }
@@ -61,66 +55,58 @@
 * {
   border: none;
   border-radius: 4px;
-  /* Reduced from 12px */
   font-family: "FiraCode Nerd Font", monospace;
   font-weight: 500;
-  font-size: 16px;
+  font-size: 15px;
   min-height: 0;
 }
 
 window#waybar {
-  /* background: rgba(25, 23, 36, 0.2); */
-  background: rgba(50,45,60,0.3);
+  background: rgba(30, 30, 46, 0.4);
+  /* Slight darkening for readability */
   color: @text;
   transition-property: background-color;
   transition-duration: 0.3s;
 }
 
-/* Unified left and right bars */
+/* Unified Container Styling (Left, Center, Right) */
 .modules-left,
+.modules-center,
 .modules-right {
-  /* background: rgba(31, 29, 46, 0.35); */
-	background: rgba(50,45,60,0.1);
-  border-radius: 2px;
-  margin: 4px 0;
-  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
-  padding: 0 4px;
-}
-
-/* Left side modules */
-.modules-left {
-  margin-left: 8px;
-  padding-left: 0;
-}
-
-/* Right side modules */
-.modules-right {
-  margin-right: 8px;
-  padding-right: 0;
-}
-
-/* Workspaces */
-#clock {
-  background: rgba(31, 29, 46, 0.35);
-  margin: 0 4px;
-  padding: 0 4px;
+  background: rgba(50, 45, 60, 0.15);
+  border: 1px solid rgba(90, 120, 120, 0.6);
   border-radius: 4px;
+  margin: 4px 6px;
+  padding: 0 8px;
+}
+
+/* --- LEFT MODULES (Launcher & Navigation) --- */
+#custom-launcher {
+  color: @iris;
+  font-size: 18px;
+  padding-left: 8px;
+  padding-right: 12px;
+}
+
+/* --- CENTER MODULES (Workspaces) --- */
+#workspaces {
+  background: transparent;
 }
 
 #workspaces button {
   color: @workspace-inactive;
   padding: 0 8px;
   margin: 4px 2px;
-  border-radius: 2px;
+  border-radius: 4px;
   transition: all 0.3s ease;
 }
 
 #workspaces button.active {
-  border: 1px solid rgba(90,120,120,1);
+  border: 1px solid @iris;
   color: @text;
   font-weight: 600;
+  background: rgba(196, 167, 231, 0.1);
 }
-
 
 #workspaces button.urgent {
   background: @workspace-urgent;
@@ -133,168 +119,74 @@ window#waybar {
   color: @base;
 }
 
-#taskbar {
-  background: rgba(31, 29, 46, 0.35);
-  margin: 4px 8px;
-  padding: 0 8px;
-  border-radius: 3px;
-}
-
-/* Taskbar Buttons */
-#taskbar button {
-  padding: 0 6px;
-  margin: 4px 2px;
-  color: @workspace-inactive;
-  background: transparent;
-  border-radius: 3px;
-  transition: all 0.2s ease;
-}
-
-/* Active Window */
-#taskbar button.active {
-  background: rgba(25, 23, 36, 0.3);
-  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
+/* --- RIGHT MODULES (System & Clock) --- */
+#clock {
   color: @text;
   font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding-right: 8px;
 }
 
-/* Hover Effect */
-#taskbar button:hover {
-  background: @workspace-hover;
-  color: @base;
-}
-
-/* Urgent Window (flashing) */
-#taskbar button.urgent {
-  animation: pulse 1.5s infinite;
-  background: @workspace-urgent;
-  color: @base;
-}
-
-/* Window Icons */
-#taskbar button image {
-  margin-right: 4px;
-}
-
-/* Minimized Windows */
-#taskbar button.minimized {
-  opacity: 0.6;
-}
-
-/* Taskbar on Left/Right Side */
-.modules-left #taskbar,
-.modules-right #taskbar {
-  margin: 0;
-  padding: 0 4px;
-  background: transparent;
-}
-
-/* General module styling */
-#custom-launcher,
-#custom-lock_screen,
-#cpu,
-#disk,
-#memory,
-#clock,
-#battery,
-#network,
-#tray,
-#temperature,
-#taskbar {
-  background: transparent;
-  color: @text;
-  padding: 0 8px;
-  margin: 0 2px;
-  transition: all 0.3s ease;
-}
-
-/* Leftmost module */
-#custom-launcher {
-  color: @iris;
-  padding-left: 16px;
-  margin-left: 0;
-  border-radius: 4px 2px 2px 4px;
-}
-
-/* Center clock */
-#workspaces {
- border: 1px solid rgba(90,120,120,0.8); /* brighter teal */
-  color: @rose;
-  font-weight: 600;
-  padding: 0 16px;
-  margin: 4px 0;
-  border: 1px solid rgba(90,120,120,0.8); /* updated border color */
-  border-radius: 3px;
-}
-
-/* Indicators */
-#battery.charging {
-  color: @charging;
-}
-
-#battery.warning:not(.charging) {
-  color: @warning;
-  animation: blink-warning 1s infinite steps(2);
-}
-
-#battery.critical:not(.charging) {
-  color: @critical;
-  animation: blink-critical 0.5s infinite steps(2);
-}
-
-#disk.critical,
-#temperature.critical {
-  background-color: @critical;
-  color: @base;
-}
-
-#disk.warning,
-#temperature.warning {
-  background-color: @warning;
-  color: @base;
-}
-
-/* Tray */
 #tray {
-  padding: 0 6px;
+  padding: 0 10px;
 }
 
-#tray>.passive {
-  -gtk-icon-effect: dim;
-}
-
-#tray>.needs-attention {
-  -gtk-icon-effect: highlight;
-  background-color: @love;
-}
-
-/* Tooltip */
-tooltip {
-  background: @base;
-  border: 1px solid @highlight-med;
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
-tooltip label {
-  color: @text;
-  font-size: 13px;
-}
-
-/* Module Specific Styling */
 #network {
   color: @foam;
 }
 
-#memory {
-  color: @iris;
+#custom-lock_screen {
+  color: @love;
+  padding: 0 10px;
+}
+
+/* --- INDIVIDUAL MODULES (General) --- */
+#cpu,
+#memory,
+#battery,
+#temperature,
+#taskbar {
+  background: transparent;
+  padding: 0 8px;
+  margin: 0 2px;
 }
 
 #cpu {
   color: @rose;
 }
 
-#temperature {
+#memory {
+  color: @iris;
+}
+
+/* Battery States */
+#battery {
+  color: @text;
+}
+
+#battery.charging {
+  color: @foam;
+}
+
+#battery.warning:not(.charging) {
   color: @gold;
+  animation: blink-warning 1s infinite steps(2);
+}
+
+#battery.critical:not(.charging) {
+  color: @love;
+  animation: blink-critical 0.5s infinite steps(2);
+}
+
+/* Tooltip Positioning for Bottom Bar */
+tooltip {
+  background: @base;
+  border: 1px solid @highlight-med;
+  border-radius: 4px;
+  padding: 8px;
+  text-shadow: none;
+}
+
+tooltip label {
+  color: @text;
+  font-size: 14px;
 }

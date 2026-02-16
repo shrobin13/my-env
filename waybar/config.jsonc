@@ -1,6 +1,6 @@
 {
   "layer": "top",
-  "position": "top",
+  "position": "bottom",
   "mod": "dock",
   "exclusive": true,
   "passthrough": false,
@@ -8,29 +8,32 @@
   "height": 36,
   "spacing": 6,
   "margin-top": 0,
-  "margin-bottom": 0,
+  "margin-bottom": 2,
   "margin-right": 8,
   "margin-left": 8,
-  // Left: Launchers & Navigation
+
+// LEFT: The "Start" area
   "modules-left": [
     "custom/launcher",
-    "network",
-    "clock"
-  ],
-  // Center: Time
-  "modules-center": [
     "hyprland/workspaces"
   ],
-  // Right: System status
+
+  // CENTER: Focus on status/metrics
+  "modules-center": [
+    "cpu",
+    "memory",
+    "battery"
+  ],
+
+  // RIGHT: The "System Tray" area
   "modules-right": [
     "tray",
-    "battery",
-    "cpu",
-    // "temperature",
-    "memory",
+    "network",
     "custom/power_profile",
-    "custom/lock_screen"
+    "custom/lock_screen",
+    "clock"
   ],
+ 
   // Custom Modules
   "custom/launcher": {
     "format": "<span font='14'></span>",
