@@ -29,10 +29,10 @@
 
   // RIGHT: The "System Tray" area
   "modules-right": [
-    "custom/power_profile",
     "network",
-    "custom/lock_screen",
-    "clock"
+    "custom/power_profile",
+    "clock",
+    "custom/lock_screen"
   ],
  
   // Custom Modules
