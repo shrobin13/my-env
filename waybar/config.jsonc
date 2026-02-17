@@ -88,8 +88,8 @@
   // CPU Monitor
   "cpu": {
     "interval": 1,
-    "format": "{icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7} {usage}%",
-    "max-length": 12,
+    "format": "🖳 {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}",
+    "max-length": 16,
     "tooltip": false,
     "format-icons": [
       "<span color='#31748f'>▁</span>", // pine green (very low usage)
