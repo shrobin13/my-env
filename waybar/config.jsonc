@@ -88,7 +88,7 @@
   // CPU Monitor
   "cpu": {
     "interval": 1,
-    "format": "🖳 {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}",
+    "format": "  {usage}% {icon0}{icon1}{icon2}{icon3}{icon4}{icon5}{icon6}{icon7}",
     "max-length": 16,
     "tooltip": false,
     "format-icons": [
@@ -113,7 +113,7 @@
     "tooltip": false
   },
   "memory": {
-    "format": "🖫 {percentage}%",
+    "format": "󰘚 {percentage}%",
     "max-length": 6,
     "on-click": "kitty -e htop"
   },
