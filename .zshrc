@@ -49,18 +49,6 @@ fi
 source "$ZINIT_HOME/zinit.zsh"
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
-
-# ── Theme ────────────────────────────────────────────────────────────────────
-zinit ice depth=1; zinit light romkatv/powerlevel10k
-
-# ── Core plugins (loaded immediately — order matters) ────────────────────────
-zinit light zsh-users/zsh-autosuggestions
-zinit light zdharma-continuum/fast-syntax-highlighting   # must be last of the three
-zinit light Aloxaf/fzf-tab
-
-# ── Lazy-loaded completions (deferred until first use) ───────────────────────
-zinit ice wait lucid; zinit light zsh-users/zsh-completions
-
 # ════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — COMPLETION SYSTEM
 # ════════════════════════════════════════════════════════════════════════════
@@ -80,6 +68,18 @@ zstyle ':completion:*:descriptions' format '%F{yellow}%d%f'
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'lsd --color=always $realpath 2>/dev/null'
 zstyle ':fzf-tab:complete:*' fzf-preview \
   'file "$realpath" 2>/dev/null | grep -q text && bat --color=always "$realpath" 2>/dev/null || echo "$realpath"'
+
+
+# ── Theme ────────────────────────────────────────────────────────────────────
+zinit ice depth=1; zinit light romkatv/powerlevel10k
+
+# ── Core plugins (loaded immediately — order matters) ────────────────────────
+zinit light zsh-users/zsh-autosuggestions
+zinit light zdharma-continuum/fast-syntax-highlighting   # must be last of the three
+
+# ── Lazy-loaded completions (deferred until first use) ───────────────────────
+zinit ice wait lucid; zinit light zsh-users/zsh-completions
+zinit light Aloxaf/fzf-tab
 
 # ════════════════════════════════════════════════════════════════════════════
 # SECTION 4 — SHELL OPTIONS
