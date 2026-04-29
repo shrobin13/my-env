@@ -720,6 +720,30 @@ fbrew() {
   (( ${#casks[@]}    > 0 )) && brew install --cask "${casks[@]}"
 }
 
+# Filter and remove Arch packages (including AUR)
+remove_app() {
+    # 1. List all installed packages (native + AUR)
+    # 2. Use fzf for interactive filtering
+    # 3. Preview shows package info so you don't delete the wrong thing
+    local pkg=$(pacman -Qq | fzf --header="Select package to REMOVE" \
+        --preview "pacman -Qi {1}" --preview-window=right:60%)
+
+    if [ -n "$pkg" ]; then
+        # Check if it's a native package or AUR to use the right tool
+        if pacman -Qm | grep -q "^$pkg "; then
+            echo "$pkg is an AUR package."
+            read -p "Uninstall $pkg and its unneeded dependencies? (y/N): " confirm
+            [[ $confirm == [yY] ]] && yay -Rns "$pkg"
+        else
+            echo "$pkg is a native package."
+            read -p "Uninstall $pkg and its unneeded dependencies? (y/N): " confirm
+            [[ $confirm == [yY] ]] && sudo pacman -Rns "$pkg"
+        fi
+    else
+        echo "No package selected."
+    fi
+}
+
 # ════════════════════════════════════════════════════════════════════════════
 # SECTION 11 — LOCAL EXTRAS
 # ════════════════════════════════════════════════════════════════════════════

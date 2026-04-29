@@ -1,41 +1,39 @@
 #!/bin/bash
 
-current=$(powerprofilesctl get)
+STATE_FILE="/tmp/tlp_mode"
+
+# Default state
+[[ -f "$STATE_FILE" ]] || echo "AC" >"$STATE_FILE"
+
+current_status=$(cat "$STATE_FILE")
 
 if [[ "$1" == "--toggle" ]]; then
-  if [[ "$current" == "power-saver" ]]; then
-    powerprofilesctl set balanced
-  elif [[ "$current" == "balanced" ]]; then
-    powerprofilesctl set performance
+  if [[ "$current_status" == "BAT" ]]; then
+    sudo tlp performance >/dev/null
+    new_status="AC"
   else
-    powerprofilesctl set power-saver
+    sudo tlp power-saver >/dev/null
+    new_status="BAT"
   fi
+
+  echo "$new_status" >"$STATE_FILE"
+  current_status="$new_status"
+
+  # Refresh rate
+  if pgrep -x Hyprland >/dev/null; then
+    if [[ "$current_status" == "AC" ]]; then
+      hyprctl keyword monitor eDP-1,1920x1080@120,0x0,1
+    else
+      hyprctl keyword monitor eDP-1,1920x1080@60,0x0,1
+    fi
+  fi
+
+  pkill -RTMIN+4 waybar
 fi
 
-new_current=$(powerprofilesctl get)
-
-case "$new_current" in
-power-saver)
-  icon=""        # lightning bolt
-  color="#98c379" # green-ish
-  label="Saver"
-  ;;
-balanced)
-  icon=" "       # sync icon
-  color="#61afef" # blue-ish
-  label="Balanced"
-  ;;
-performance)
-  icon=""        # rocket
-  color="#e06c75" # red-ish
-  label="Performance"
-  ;;
-*)
-  icon="?"
-  color="#bbbbbb"
-  label="Unknown"
-  ;;
-esac
-
-# JSON output with colored icon + label, and tooltip with full text
-echo "{\"text\": \"<span foreground='$color'>$icon</span> <span foreground='#ddd'>$label</span>\", \"tooltip\": \"Power Profile: $new_current\"}"
+# UI
+if [[ "$current_status" == "BAT" ]]; then
+  echo '{"text": "<span foreground=\"#98c379\"></span> Saver"}'
+else
+  echo '{"text": "<span foreground=\"#e06c75\"></span> Performance"}'
+fi

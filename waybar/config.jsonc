@@ -30,26 +30,35 @@
   // RIGHT: The "System Tray" area
   "modules-right": [
     "network",
-    "custom/power_profile",
+    "custom/tlp",
     "clock",
     "custom/lock_screen"
   ],
- 
+
   // Custom Modules
   "custom/launcher": {
     "format": "<span font='14'></span>",
     "on-click": "rofi -show drun -theme ~/.config/rofi/rose-pine.rasi",
     "tooltip": false
   },
-  "custom/power_profile": {
-    "exec": "~/.config/waybar/scripts/power-profile.sh",
-    "interval": 10,
-    "format": "{} ",
-    "return-type": "json",
-    "on-click": "~/.config/waybar/scripts/power-profile.sh --toggle",
-    "tooltip": true,
-    "tooltip-format": "Click to cycle power profile"
-  },
+  // "custom/power_profile": {
+  //   "exec": "~/.config/waybar/scripts/power-profile.sh",
+  //   "interval": 10,
+  //   "format": "{} ",
+  //   "return-type": "json",
+  //   "on-click": "~/.config/waybar/scripts/power-profile.sh --toggle",
+  //   "tooltip": true,
+  //   "tooltip-format": "Click to cycle power profile"
+  // },
+  "custom/tlp": {
+  "format": "{}",
+  "return-type": "json",
+  "exec": "/home/light/.config/waybar/scripts/power-profile.sh",
+  "on-click": "/home/light/.config/waybar/scripts/power-profile.sh --toggle",
+  "interval": 30,
+  "escape": false,
+  "signal": 4
+},
   "custom/lock_screen": {
     "format": "<span font='14'></span>",
     "on-click": "swaync-client -t",
