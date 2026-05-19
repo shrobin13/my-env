@@ -1,192 +1,280 @@
-/* Rose Pine Inspired Color Palette */
-@define-color base #191724;
-@define-color surface #1f1d2e;
-@define-color overlay #26233a;
-@define-color muted #6e6a86;
-@define-color subtle #908caa;
-@define-color text #e0def4;
-@define-color love #eb6f92;
-@define-color gold #f6c177;
-@define-color rose #ebbcba;
-@define-color pine #31748f;
-@define-color foam #9ccfd8;
-@define-color iris #c4a7e7;
 
-@define-color highlight-low #21202e;
-@define-color highlight-med #403d52;
-@define-color highlight-high #524f67;
+@import "../omarchy/current/theme/waybar.css";
 
-/* Workspace Colors */
-@define-color workspace-bg @overlay;
-@define-color workspace-inactive @muted;
-@define-color workspace-active @iris;
-@define-color workspace-urgent @love;
-@define-color workspace-hover @foam;
-
-/* Animation */
-@keyframes pulse {
-  0% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
-
-  100% {
-    opacity: 1;
-  }
-}
-
-@keyframes blink-warning {
-  to {
-    background-color: @gold;
-    color: @base;
-  }
-}
-
-@keyframes blink-critical {
-  to {
-    background-color: @love;
-    color: @text;
-  }
-}
+/* =========================================================
+   GLOBAL
+========================================================= */
 
 * {
   border: none;
   border-radius: 4px;
-  font-family: "FiraCode Nerd Font", monospace;
-  font-weight: 500;
-  font-size: 15px;
+
+  padding: 1px;
   min-height: 0;
+
+  font-family: "JetBrainsMono Nerd Font";
+  font-size: 14px;
+  font-weight: 800;
+
+  background: transparent;
+  color: @foreground;
 }
+
+/* =========================================================
+   WAYBAR ROOT
+========================================================= */
 
 window#waybar {
-  background: rgba(30, 30, 46, 0.4);
-  /* Slight darkening for readability */
-  color: @text;
+  background: alpha(@background, 0.78);
+
   transition-property: background-color;
-  transition-duration: 0.3s;
+  transition-duration: 0.25s;
 }
 
-/* Unified Container Styling (Left, Center, Right) */
+/* =========================================================
+   MODULE CONTAINERS
+========================================================= */
+
 .modules-left,
 .modules-center,
 .modules-right {
-  background: rgba(50, 45, 60, 0.15);
-  border: 1px solid rgba(90, 120, 120, 0.6);
-  border-radius: 4px;
-  margin: 4px 6px;
-  padding: 0 8px;
-}
+  background: alpha(@foreground, 0.04);
 
-/* --- LEFT MODULES (Launcher & Navigation) --- */
-#custom-launcher {
-  color: @iris;
-  font-size: 18px;
+  border: 1px solid alpha(@foreground, 0.08);
+
+  margin-top: 4px;
+  margin-bottom: 4px;
+
   padding-left: 8px;
-  padding-right: 12px;
+  padding-right: 8px;
 }
 
-/* --- CENTER MODULES (Workspaces) --- */
+/* =========================================================
+   LEFT / RIGHT SPACING
+========================================================= */
+
+.modules-left {
+  margin-left: 8px;
+}
+
+.modules-right {
+  margin-right: 8px;
+}
+
+/* =========================================================
+   WORKSPACES
+========================================================= */
+
 #workspaces {
   background: transparent;
 }
 
 #workspaces button {
-  color: @workspace-inactive;
-  padding: 0 8px;
-  margin: 4px 2px;
+  all: initial;
+
+  min-width: 12px;
+
+  padding: 0 7px;
+  margin: 0 2px;
+
   border-radius: 4px;
-  transition: all 0.3s ease;
+
+  color: alpha(@foreground, 0.45);
+
+  transition:
+    color 120ms ease,
+    background-color 120ms ease,
+    opacity 120ms ease;
 }
 
 #workspaces button.active {
-  border: 1px solid @iris;
-  color: @text;
-  font-weight: 600;
-  background: rgba(196, 167, 231, 0.1);
-}
+  background: alpha(@foreground, 0.10);
 
-#workspaces button.urgent {
-  background: @workspace-urgent;
-  color: @base;
-  animation: pulse 2s infinite;
+  color: @foreground;
 }
 
 #workspaces button:hover {
-  background: @workspace-hover;
-  color: @base;
+  background: alpha(@foreground, 0.06);
+
+  color: @foreground;
 }
 
-/* --- RIGHT MODULES (System & Clock) --- */
-#clock {
-  color: @text;
-  font-weight: 600;
-  padding-right: 8px;
+#workspaces button.empty {
+  opacity: 0.35;
 }
 
-#tray {
-  padding: 0 10px;
+#workspaces button.urgent {
+  background: alpha(#ff5555, 0.18);
+
+  color: #ff7777;
 }
 
-#network {
-  color: @foam;
-}
+/* =========================================================
+   CORE MODULE SPACING
+========================================================= */
 
-#custom-lock_screen {
-  color: @love;
-  padding: 0 10px;
-}
-
-/* --- INDIVIDUAL MODULES (General) --- */
+#clock,
+#custom-weather,
 #cpu,
 #memory,
-#battery,
 #temperature,
-#taskbar {
-  background: transparent;
-  padding: 0 8px;
+#battery,
+#network,
+#bluetooth,
+#pulseaudio,
+#custom-update,
+#custom-voxtype {
+  padding: 0 5px;
   margin: 0 2px;
 }
 
-#cpu {
-  color: @rose;
+/* =========================================================
+   OMARCHY BUTTON
+========================================================= */
+
+#custom-omarchy {
+  min-width: 12px;
+
+  margin-right: 10px;
+
+  color: @foreground;
 }
 
-#memory {
-  color: @iris;
+/* =========================================================
+   TELEMETRY
+========================================================= */
+
+#cpu,
+#memory,
+#temperature {
+  color: alpha(@foreground, 0.82);
 }
 
-/* Battery States */
-#battery {
-  color: @text;
+#cpu:hover,
+#memory:hover,
+#temperature:hover {
+  color: @foreground;
 }
 
-#battery.charging {
-  color: @foam;
+/* =========================================================
+   CLOCK
+========================================================= */
+
+#clock {
+  font-weight: 700;
+
+  padding-right: 8px;
 }
+
+/* =========================================================
+   WEATHER
+========================================================= */
+
+#custom-weather {
+  color: alpha(@foreground, 0.82);
+}
+
+#custom-weather.unavailable {
+  min-width: 0;
+
+  margin: 0;
+  padding: 0;
+
+  opacity: 0;
+}
+
+/* =========================================================
+   UPDATE
+========================================================= */
+
+#custom-update {
+  font-size: 10px;
+
+  color: #d79921;
+}
+
+/* =========================================================
+   AUDIO / NETWORK / BT
+========================================================= */
+
+#network,
+#bluetooth,
+#pulseaudio {
+  color: alpha(@foreground, 0.85);
+}
+
+/* =========================================================
+   BATTERY
+========================================================= */
 
 #battery.warning:not(.charging) {
-  color: @gold;
-  animation: blink-warning 1s infinite steps(2);
+  color: #e5c07b;
 }
 
 #battery.critical:not(.charging) {
-  color: @love;
-  animation: blink-critical 0.5s infinite steps(2);
+  color: #e06c75;
 }
 
-/* Tooltip Positioning for Bottom Bar */
+#battery.charging {
+  color: #98c379;
+}
+
+/* =========================================================
+   TRAY
+========================================================= */
+
+#tray {
+  margin-right: 10px;
+}
+
+#custom-expand-icon {
+  margin-right: 12px;
+
+  color: alpha(@foreground, 0.55);
+}
+
+/* =========================================================
+   INDICATORS
+========================================================= */
+
+#custom-screenrecording-indicator,
+#custom-idle-indicator,
+#custom-notification-silencing-indicator {
+  min-width: 12px;
+
+  margin-left: 5px;
+
+  font-size: 10px;
+}
+
+#custom-screenrecording-indicator.active,
+#custom-idle-indicator.active,
+#custom-notification-silencing-indicator.active,
+#custom-voxtype.recording {
+  color: #e06c75;
+}
+
+/* =========================================================
+   VOXTYPE
+========================================================= */
+
+#custom-voxtype {
+  margin-left: 7px;
+}
+
+/* =========================================================
+   TOOLTIPS
+========================================================= */
+
 tooltip {
-  background: @base;
-  border: 1px solid @highlight-med;
-  border-radius: 4px;
-  padding: 8px;
-  text-shadow: none;
+  background: @background;
+
+  border: 1px solid alpha(@foreground, 0.12);
+
+  padding: 6px;
 }
 
 tooltip label {
-  color: @text;
-  font-size: 14px;
+  color: @foreground;
 }
+
