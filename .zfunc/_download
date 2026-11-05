@@ -1,0 +1,52 @@
+#compdef download
+
+_download_zsh_comp() {
+  local -a opts
+  opts=(
+    '-p[Download entire playlist]'
+    '--playlist[Download entire playlist]'
+    '-a[Audio only (opus/best)]'
+    '--audio[Audio only (opus/best)]'
+    '--mp3[Force MP3 output (implies -a)]'
+    '--flac[Force lossless FLAC output (implies -a)]'
+    '-s[Embed subtitles (requires ffmpeg)]'
+    '--subs[Embed subtitles (requires ffmpeg)]'
+    '-S[Remove sponsor segments (requires ffmpeg)]'
+    '--sponsorblock[Remove sponsor segments (requires ffmpeg)]'
+    '--chapters[Embed chapter markers (requires ffmpeg)]'
+    '-q[Max video quality]:quality:(480 720 1080 1440 2160)'
+    '--quality[Max video quality]:quality:(480 720 1080 1440 2160)'
+    '-d[Output directory]:directory:_directories'
+    '--dir[Output directory]:directory:_directories'
+    '-c[Cookies file]:file:_files'
+    '--cookies[Cookies file]:file:_files'
+    '--chrome[Cookies from Chrome]'
+    '--firefox[Cookies from Firefox]'
+    '-A[Use download archive]'
+    '--archive[Use download archive]'
+    '-l[List formats]'
+    '--list[List formats]'
+    '-n[Parallel downloads]:count:'
+    '--parallel[Parallel downloads]:count:'
+    '-R[Override throttle rate]:speed:'
+    '--rate[Override throttle rate]:speed:'
+    '-b[Read URLs from file]:batchfile:_files'
+    '--batch-file[Read URLs from file]:batchfile:_files'
+    '--thumb[Thumbnail only]'
+    '--meta[Metadata only]'
+    '--dry-run[Simulate, no download]'
+    '--open[Open folder when done]'
+    '--no-notify[Disable notifications]'
+    '--no-progress[Plain progress]'
+    '--clip[Download a clip S-E]:timerange:'
+    '--clipboard[URL from clipboard]'
+    '--update[Update yt-dlp]'
+    '--version[Show version info]'
+    '-h[Show help]'
+    '--help[Show help]'
+    '*:URLs:_urls'
+  )
+  _arguments -s -S $opts
+}
+
+_download_zsh_comp "$@"

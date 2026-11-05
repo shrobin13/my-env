@@ -1,0 +1,411 @@
+#!/usr/bin/env zsh
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║   download  —  yt-dlp frontend CLI utility                             ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+DL_DEFAULT_QUALITY="${DL_DEFAULT_QUALITY:-1080}"
+DL_VIDEO_DIR="${DL_VIDEO_DIR:-$HOME/Videos}"
+DL_MUSIC_DIR="${DL_MUSIC_DIR:-$HOME/Music}"
+DL_ARCHIVE="${DL_ARCHIVE:-}"
+DL_PARALLEL="${DL_PARALLEL:-4}"
+DL_RETRIES="${DL_RETRIES:-5}"
+DL_FRAGMENT_RETRIES="${DL_FRAGMENT_RETRIES:-5}"
+DL_SOCKET_TIMEOUT="${DL_SOCKET_TIMEOUT:-30}"
+DL_THROTTLE_RATE="${DL_THROTTLE_RATE:-100K}"
+DL_HISTORY_LOG="${DL_HISTORY_LOG:-${XDG_CACHE_HOME:-$HOME/.cache}/download/history.log}"
+
+_dl_red()    { print -P "%F{red}%B$*%b%f"; }
+_dl_green()  { print -P "%F{green}%B$*%b%f"; }
+_dl_yellow() { print -P "%F{yellow}$*%f"; }
+_dl_cyan()   { print -P "%F{cyan}$*%f"; }
+_dl_bold()   { print -P "%B$*%b"; }
+_dl_error()  { print -P "%F{red}%B❌  $*%b%f" >&2; }
+_dl_warn()   { print -P "%F{yellow}⚠️   $*%f" >&2; }
+_dl_info()   { print -P "%F{cyan}ℹ️   $*%f"; }
+_dl_ok()     { print -P "%F{green}%B✔   $*%b%f"; }
+
+_dl_load_config() {
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}/download/config"
+  [[ -f "$cfg" ]] && source "$cfg"
+}
+
+_dl_help() {
+  cat <<'EOF'
+
+  ╭─────────────────────────────────────────────────────────────────╮
+  │                   download  —  yt-dlp frontend                  │
+  ╰─────────────────────────────────────────────────────────────────╯
+
+  USAGE
+    download [options] <url> [url2 url3 ...]
+
+  OPTIONS
+    -p, --playlist         Download entire playlist
+    -a, --audio            Audio-only (opus/best)
+        --mp3              Force MP3 output (implies -a)
+        --flac             Force lossless FLAC output (implies -a)
+    -s, --subs             Embed subtitles (requires ffmpeg)
+    -S, --sponsorblock     Remove sponsor/self-promo segments (requires ffmpeg)
+        --chapters         Embed chapter markers (requires ffmpeg)
+    -q, --quality <res>    Max video height: 480 | 720 | 1080 | 1440 | 2160
+    -d, --dir <path>       Save to custom directory
+    -c, --cookies <file>   Load cookies from file
+        --chrome           Load cookies from Chrome
+        --firefox          Load cookies from Firefox
+    -A, --archive          Skip already-downloaded files
+    -l, --list             List available formats (no download)
+    -n, --parallel <N>     Parallel downloads for playlists (default: 4)
+    -R, --rate <speed>     Override throttle rate (e.g. 2M, 500K)
+    -b, --batch-file <f>   Read URLs from a file
+        --thumb            Thumbnail only
+        --meta             Write JSON metadata only
+        --dry-run          Simulate, no download
+        --open             Open destination folder when done
+        --no-notify        Disable desktop notifications
+        --no-progress      Plain progress
+        --clip <S-E>       Download a clip, e.g. --clip 1:30-3:45
+        --clipboard        Read URL from clipboard
+        --update           Self-update yt-dlp
+        --version          Show wrapper + yt-dlp version
+    -h, --help             Show this help
+
+EOF
+}
+
+_dl_parse_args() {
+  PLAYLIST=0; AUDIO=0; FORCE_MP3=0; FORCE_FLAC=0; SUBS=0
+  SPONSORBLOCK=0; EMBED_CHAPTERS=0
+  QUALITY="$DL_DEFAULT_QUALITY"
+  VIDEO_DIR="$DL_VIDEO_DIR"; MUSIC_DIR="$DL_MUSIC_DIR"
+  OUT_DIR=""
+  ARCHIVE_FILE="$DL_ARCHIVE"; USE_ARCHIVE=0
+  PARALLEL="$DL_PARALLEL"
+  RATE_OVERRIDE=""
+  COOKIES_FILE=""; COOKIES_BROWSER=""
+  LIST_FORMATS=0; THUMB_ONLY=0; META_ONLY=0
+  NO_NOTIFY=0; NO_PROGRESS=0
+  CLIP_START=""; CLIP_END=""
+  USE_CLIPBOARD=0
+  BATCH_FILE=""
+  DRY_RUN=0; OPEN_FOLDER=0
+  DO_UPDATE=0; SHOW_VERSION=0
+  URLS=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -p|--playlist)      PLAYLIST=1 ;;
+      -a|--audio)         AUDIO=1 ;;
+         --mp3)           AUDIO=1; FORCE_MP3=1 ;;
+         --flac)          AUDIO=1; FORCE_FLAC=1 ;;
+      -s|--subs)          SUBS=1 ;;
+      -S|--sponsorblock)  SPONSORBLOCK=1 ;;
+         --chapters)      EMBED_CHAPTERS=1 ;;
+      -A|--archive)       USE_ARCHIVE=1 ;;
+      -l|--list)          LIST_FORMATS=1 ;;
+         --thumb)         THUMB_ONLY=1 ;;
+         --meta)          META_ONLY=1 ;;
+         --dry-run)       DRY_RUN=1 ;;
+         --open)          OPEN_FOLDER=1 ;;
+         --no-notify)     NO_NOTIFY=1 ;;
+         --no-progress)   NO_PROGRESS=1 ;;
+         --chrome)        COOKIES_BROWSER="chrome" ;;
+         --firefox)       COOKIES_BROWSER="firefox" ;;
+         --clipboard)     USE_CLIPBOARD=1 ;;
+         --update)        DO_UPDATE=1 ;;
+         --version)       SHOW_VERSION=1 ;;
+      -q|--quality)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        QUALITY="$2"; shift ;;
+      -d|--dir)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        OUT_DIR="$2"; shift ;;
+      -c|--cookies)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        COOKIES_FILE="$2"; shift ;;
+      -n|--parallel)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        PARALLEL="$2"; shift ;;
+      -R|--rate)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        RATE_OVERRIDE="$2"; shift ;;
+      -b|--batch-file)
+        [[ -n $2 ]] || { _dl_error "Missing value after $1"; return 1; }
+        BATCH_FILE="$2"; shift ;;
+      --clip)
+        [[ -n $2 ]] || { _dl_error "Missing value after --clip"; return 1; }
+        CLIP_START="${2%-*}"; CLIP_END="${2#*-}"; shift ;;
+      -h|--help)
+        _dl_help; return 2 ;;
+      -*)
+        _dl_error "Unknown option: $1 — run: download --help"
+        return 1 ;;
+      *)
+        URLS+=("$1") ;;
+    esac
+    shift
+  done
+}
+
+_dl_build_opts() {
+  local throttle="${RATE_OVERRIDE:-$DL_THROTTLE_RATE}"
+
+  OPTS=(
+    -P "$OUT_DIR"
+    --embed-metadata
+    --embed-thumbnail
+    --ignore-errors
+    --no-warnings
+    --restrict-filenames
+    -N "$PARALLEL"
+    --retries              "$DL_RETRIES"
+    --fragment-retries     "$DL_FRAGMENT_RETRIES"
+    --retry-sleep          3
+    --retry-sleep          "fragment:2"
+    --socket-timeout       "$DL_SOCKET_TIMEOUT"
+    --throttled-rate       "$throttle"
+    --continue
+  )
+
+  if (( PLAYLIST )); then
+    OPTS+=(-o "%(playlist_title)s/%(playlist_index)03d - %(title)s.%(ext)s")
+  else
+    OPTS+=(--no-playlist -o "%(title)s.%(ext)s")
+  fi
+
+  if (( AUDIO )); then
+    OPTS+=(-x)
+    if (( FORCE_MP3 )); then
+      OPTS+=(-f bestaudio --audio-format mp3 --audio-quality 0)
+    elif (( FORCE_FLAC )); then
+      OPTS+=(-f bestaudio --audio-format flac --audio-quality 0)
+    else
+      OPTS+=(-f bestaudio --audio-format best --audio-quality 0)
+    fi
+  else
+    local FMT="bestvideo[height<=${QUALITY}][vcodec^=vp9]+bestaudio[acodec=opus]"
+    FMT+="/bestvideo[height<=${QUALITY}][ext=mp4]+bestaudio[ext=m4a]"
+    FMT+="/bestvideo[height<=${QUALITY}]+bestaudio"
+    FMT+="/best[height<=${QUALITY}]/best"
+    OPTS+=(-f "$FMT")
+  fi
+
+  (( SUBS )) && OPTS+=(
+    --write-subs --write-auto-subs
+    --sub-langs "en,en-US,en-GB"
+    --embed-subs
+  )
+
+  (( SPONSORBLOCK )) && OPTS+=(--sponsorblock-remove sponsor,selfpromo,interaction)
+  (( EMBED_CHAPTERS )) && OPTS+=(--embed-chapters)
+
+  if [[ -n $COOKIES_BROWSER ]]; then
+    OPTS+=(--cookies-from-browser "$COOKIES_BROWSER")
+  elif [[ -n $COOKIES_FILE ]]; then
+    [[ -f $COOKIES_FILE ]] || { _dl_error "Cookies file not found: $COOKIES_FILE"; return 1; }
+    OPTS+=(--cookies "$COOKIES_FILE")
+  fi
+
+  if (( USE_ARCHIVE )); then
+    ARCHIVE_FILE="${ARCHIVE_FILE:-$HOME/.cache/yt-dlp-archive}"
+    mkdir -p "$(dirname "$ARCHIVE_FILE")"
+    OPTS+=(--download-archive "$ARCHIVE_FILE")
+    _dl_info "Archive: $ARCHIVE_FILE"
+  fi
+
+  if [[ -n $CLIP_START ]]; then
+    OPTS+=(
+      --download-sections "*${CLIP_START}-${CLIP_END}"
+      --force-keyframes-at-cuts
+    )
+    _dl_info "Clipping: ${CLIP_START} → ${CLIP_END}"
+  fi
+
+  (( THUMB_ONLY )) && { OPTS+=(--write-thumbnail --skip-download); _dl_info "Thumbnail-only mode"; }
+  (( META_ONLY  )) && { OPTS+=(--write-info-json  --skip-download); _dl_info "Metadata-only mode"; }
+  (( DRY_RUN )) && OPTS+=(--simulate --print "would download: %(title)s [%(id)s] (%(ext)s, %(resolution)s)")
+
+  if (( ! NO_NOTIFY )) && ! (( DRY_RUN )) && command -v notify-send >/dev/null 2>&1; then
+    local notify_icon="video-x-generic"
+    (( AUDIO )) && notify_icon="audio-x-generic"
+    OPTS+=(--exec "notify-send '✅ Download complete' %(title)q --icon=${notify_icon}")
+  fi
+
+  if (( NO_PROGRESS )) || [[ ! -t 1 ]]; then
+    OPTS+=(--newline)
+  else
+    OPTS+=(
+      --progress
+      --progress-template "%(progress._percent_str)s │ %(progress._speed_str)s │ ETA %(progress._eta_str)s │ %(info.title).50s"
+    )
+  fi
+}
+
+download() {
+  _dl_load_config
+
+  local PLAYLIST AUDIO FORCE_MP3 FORCE_FLAC SUBS SPONSORBLOCK EMBED_CHAPTERS
+  local QUALITY VIDEO_DIR MUSIC_DIR OUT_DIR
+  local ARCHIVE_FILE USE_ARCHIVE PARALLEL RATE_OVERRIDE COOKIES_FILE COOKIES_BROWSER
+  local LIST_FORMATS THUMB_ONLY META_ONLY NO_NOTIFY NO_PROGRESS
+  local CLIP_START CLIP_END USE_CLIPBOARD BATCH_FILE
+  local DRY_RUN OPEN_FOLDER DO_UPDATE SHOW_VERSION
+  local -a URLS OPTS FAILED_URLS
+
+  _dl_parse_args "$@"
+  local _rc=$?
+  (( _rc == 2 )) && return 0
+  (( _rc != 0 )) && return 1
+
+  if ! command -v yt-dlp >/dev/null 2>&1; then
+    _dl_error "yt-dlp not installed. Run: sudo pacman -S yt-dlp"
+    return 1
+  fi
+
+  if (( SHOW_VERSION )); then
+    _dl_bold "download wrapper (yt-dlp frontend)"
+    _dl_info "yt-dlp: $(yt-dlp --version)"
+    command -v ffmpeg >/dev/null 2>&1 && _dl_info "ffmpeg: $(ffmpeg -version 2>/dev/null | head -1)"
+    return 0
+  fi
+
+  if (( DO_UPDATE )); then
+    _dl_info "Updating yt-dlp…"
+    if command -v pacman >/dev/null 2>&1 && pacman -Qi yt-dlp >/dev/null 2>&1; then
+      _dl_warn "yt-dlp is managed by pacman. Run: sudo pacman -Syu yt-dlp"
+      return 0
+    elif command -v pipx >/dev/null 2>&1 && pipx list 2>/dev/null | grep -qi yt-dlp; then
+      pipx upgrade yt-dlp
+    else
+      pip install -U yt-dlp --break-system-packages 2>/dev/null || pip install -U yt-dlp
+    fi
+    local _urc=$?
+    (( _urc == 0 )) && _dl_ok "yt-dlp updated" || _dl_error "Update failed"
+    return $_urc
+  fi
+
+  if (( USE_CLIPBOARD )); then
+    local _clip=""
+    if   command -v wl-paste >/dev/null 2>&1; then _clip=$(wl-paste 2>/dev/null)
+    elif command -v xclip    >/dev/null 2>&1; then _clip=$(xclip -o  2>/dev/null)
+    elif command -v pbpaste  >/dev/null 2>&1; then _clip=$(pbpaste   2>/dev/null)
+    else _dl_error "No clipboard tool (wl-paste / xclip / pbpaste)"; return 1
+    fi
+    [[ -z $_clip ]] && { _dl_error "Clipboard is empty"; return 1; }
+    URLS+=("$_clip")
+    _dl_info "URL from clipboard: $_clip"
+  fi
+
+  if [[ -n $BATCH_FILE ]]; then
+    [[ -f $BATCH_FILE ]] || { _dl_error "Batch file not found: $BATCH_FILE"; return 1; }
+    local _line
+    while IFS= read -r _line || [[ -n $_line ]]; do
+      _line="${_line%%#*}"
+      _line="${_line## }"; _line="${_line%% }"
+      [[ -n $_line ]] && URLS+=("$_line")
+    done < "$BATCH_FILE"
+    _dl_info "Loaded ${#URLS[@]} URL(s) from $BATCH_FILE"
+  fi
+
+  if [[ ${#URLS[@]} -eq 0 ]]; then
+    _dl_warn "No URL provided."
+    print -n "   Enter URL(s) separated by spaces: "
+    read -r -A _input
+    [[ ${#_input[@]} -eq 0 ]] && { _dl_error "No URL provided"; return 1; }
+    URLS+=("${_input[@]}")
+  fi
+
+  if (( LIST_FORMATS )); then
+    for u in "${URLS[@]}"; do
+      _dl_cyan "━━━  Formats for: $u"
+      yt-dlp -F "$u"
+    done
+    return 0
+  fi
+
+  case "$QUALITY" in
+    480|720|1080|1440|2160) ;;
+    *) _dl_error "Invalid quality '$QUALITY'. Valid: 480 720 1080 1440 2160"; return 1 ;;
+  esac
+
+  if [[ ! $PARALLEL =~ ^[0-9]+$ ]] || (( PARALLEL < 1 )); then
+    _dl_error "Invalid --parallel value: $PARALLEL"; return 1
+  fi
+
+  if { (( SUBS || FORCE_MP3 || FORCE_FLAC || SPONSORBLOCK || EMBED_CHAPTERS )) || [[ -n $CLIP_START ]]; } \
+     && ! command -v ffmpeg >/dev/null 2>&1; then
+    _dl_error "ffmpeg required for the requested options but was not found."
+    return 1
+  fi
+
+  if [[ -z $OUT_DIR ]]; then
+    if (( AUDIO )); then OUT_DIR="$MUSIC_DIR"; else OUT_DIR="$VIDEO_DIR"; fi
+  fi
+  mkdir -p "$OUT_DIR" || { _dl_error "Cannot create directory: $OUT_DIR"; return 1; }
+
+  mkdir -p "$(dirname "$DL_HISTORY_LOG")" 2>/dev/null
+
+  _dl_build_opts || return 1
+
+  local START_TIME=$SECONDS DL_OK=0 DL_FAIL=0
+
+  _dl_cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  if (( DRY_RUN )); then
+    _dl_bold "  🔍 Dry run — previewing ${#URLS[@]} URL(s)  →  $OUT_DIR"
+  else
+    _dl_bold "  ⬇  Downloading ${#URLS[@]} URL(s)  →  $OUT_DIR"
+  fi
+  _dl_cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  for u in "${URLS[@]}"; do
+    echo
+    _dl_info "URL: $u"
+
+    local LOG_FILE
+    LOG_FILE="$(mktemp /tmp/yt-dlp-XXXXXX.log)"
+    trap 'rm -f "$LOG_FILE"' EXIT INT TERM
+
+    if yt-dlp "${OPTS[@]}" "$u" 2> >(tee "$LOG_FILE" | grep -v 'HTTP Error 403' >&2); then
+      (( DL_OK++ ))
+      (( ! DRY_RUN )) && echo "$(date '+%Y-%m-%d %H:%M:%S')	OK	$u" >> "$DL_HISTORY_LOG" 2>/dev/null
+    else
+      (( DL_FAIL++ ))
+      FAILED_URLS+=("$u")
+      echo "$(date '+%Y-%m-%d %H:%M:%S')	FAIL	$u" >> "$DL_HISTORY_LOG" 2>/dev/null
+      _dl_error "Download failed: $u"
+      if [[ -s $LOG_FILE ]]; then
+        _dl_warn "Last stderr output:"
+        tail -5 "$LOG_FILE" >&2
+      fi
+    fi
+    rm -f "$LOG_FILE"
+    trap - EXIT INT TERM
+  done
+
+  local ELAPSED=$(( SECONDS - START_TIME ))
+  echo
+  _dl_cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  (( DL_OK   > 0 )) && _dl_ok    "Downloaded : $DL_OK file(s)"
+  (( DL_FAIL > 0 )) && _dl_error "Failed     : $DL_FAIL file(s)"
+  (( ! DRY_RUN )) && _dl_bold   "  📂 Saved to : $OUT_DIR"
+  _dl_bold   "  ⏱  Time     : $(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s"
+  _dl_cyan "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  if (( DL_FAIL > 0 )); then
+    echo
+    _dl_warn "Failed URLs:"
+    for fu in "${FAILED_URLS[@]}"; do echo "   $fu"; done
+    _dl_info "Retry with: download ${FAILED_URLS[*]}"
+  fi
+
+  if (( OPEN_FOLDER )) && (( DL_OK > 0 )) && ! (( DRY_RUN )); then
+    if command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "$OUT_DIR" >/dev/null 2>&1 &
+    else
+      _dl_warn "xdg-open not found; can't auto-open $OUT_DIR"
+    fi
+  fi
+
+  (( DL_FAIL > 0 )) && return 1 || return 0
+}
+
+download "$@"
