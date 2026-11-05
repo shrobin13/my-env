@@ -13,6 +13,7 @@ Item {
   property var notificationData: ({})
   property bool isRead: false
   property bool isPinned: false
+  property bool isSnoozed: false
   property bool isGroupHeader: false
   property int groupExtraCount: 0
   property bool groupExpanded: false
@@ -21,6 +22,7 @@ Item {
   signal actionTriggered(string key, string actionId)
   signal replySubmitted(string key, string replyText)
   signal snoozeRequested(string key, int durationSec)
+  signal wakeRequested(string key)
   signal pinToggled(string key)
   signal muteAppRequested(string appName)
   signal groupToggleRequested(string appName)
@@ -48,22 +50,70 @@ Item {
     return Qt.rgba(foreground.r, foreground.g, foreground.b, 0.2)
   }
 
-  // Swipe-to-dismiss states
-  property real dragOffset: 0
-  property real cardOpacity: 1.0
+  // Delegate z-stacking: popups must appear above adjacent cards
+  z: (snoozePopup.visible || morePopup.visible) ? 100 : (cardHover.hovered ? 10 : 0)
+
+  // Primary action execution helper for Keyboard Enter
+  function runPrimaryAction() {
+    if (root.isSnoozed) {
+      root.wakeRequested(root.notificationData ? root.notificationData.key : "")
+      return true
+    }
+
+    if (cardActions && cardActions.direct && cardActions.direct.length > 0) {
+      var act = cardActions.direct[0]
+      if (act.kind === "code") {
+        executeCodeCopy(String(act.value))
+        return true
+      } else if (act.kind === "url") {
+        return executeUrlOpen(String(act.value))
+      } else {
+        root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(act.id))
+        return true
+      }
+    }
+
+    // Default action fallback
+    if (root.notificationData && (root.notificationData.execArgv || (root.notificationData.actions && root.notificationData.actions.length > 0))) {
+      root.actionTriggered(root.notificationData.key, "default")
+      return true
+    }
+    return false
+  }
+
+  function executeCodeCopy(codeVal) {
+    if (!codeVal) return
+    Quickshell.execDetached(["wl-copy", "--sensitive", codeVal])
+    // Auto-clear clipboard after 30s only if it still matches the code
+    var clearScript = 'sleep 30 && [ "$(wl-paste 2>/dev/null)" = "' + codeVal.replace(/"/g, '\\"') + '" ] && wl-copy --clear'
+    Quickshell.execDetached(["sh", "-c", clearScript])
+  }
+
+  function executeUrlOpen(urlVal) {
+    var safeUrl = Model.sanitizeUrl(urlVal)
+    if (safeUrl) {
+      Quickshell.execDetached(["omarchy-launch-browser", safeUrl])
+      root.actionTriggered(root.notificationData ? root.notificationData.key : "", "open_url")
+      return true
+    }
+    return false
+  }
+
+  // Dismiss animations
   property bool isDismissing: false
 
-  function triggerDismiss() {
+  function triggerDismiss(direction) {
     if (isDismissing) return
     isDismissing = true
-    slideOutAnim.to = dragOffset >= 0 ? root.width * 1.2 : -root.width * 1.2
+    var targetOffset = (direction === undefined ? 1 : direction) * (root.width * 1.25)
+    slideOutAnim.to = targetOffset
     slideOutAnim.start()
   }
 
   NumberAnimation {
     id: slideOutAnim
-    target: root
-    property: "dragOffset"
+    target: cardRect
+    property: "x"
     duration: Style.duration(160)
     easing.type: Easing.OutCubic
     onFinished: {
@@ -73,8 +123,8 @@ Item {
 
   NumberAnimation {
     id: returnAnim
-    target: root
-    property: "dragOffset"
+    target: cardRect
+    property: "x"
     to: 0
     duration: Style.duration(140)
     easing.type: Easing.OutCubic
@@ -83,18 +133,23 @@ Item {
   width: parent ? parent.width : Style.space(380)
   implicitHeight: cardRect.implicitHeight
 
+  // Card Outer Container
   Rectangle {
     id: cardRect
-    x: root.dragOffset
-    opacity: root.cardOpacity * (1 - Math.min(0.6, Math.abs(root.dragOffset) / (root.width * 0.9)))
+    x: 0
     width: parent.width
     implicitHeight: contentCol.implicitHeight + Style.space(24)
     radius: Math.max(10, Style.cornerRadius)
-    color: cardMouse.containsMouse ? root.hoverBg : root.cardBg
-    border.color: cardMouse.containsMouse
-      ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.4)
-      : (root.isPinned ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35) : root.cardBorder)
-    border.width: 1
+    opacity: 1.0 - Math.min(0.65, Math.abs(x) / (root.width * 0.9))
+
+    // Card background & keyboard selection highlight
+    color: cardHover.hovered ? root.hoverBg : root.cardBg
+    border.color: ListView.isCurrentItem
+      ? Commons.Color.accent
+      : (cardHover.hovered
+         ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.45)
+         : (root.isPinned ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35) : root.cardBorder))
+    border.width: ListView.isCurrentItem ? 2 : 1
     clip: false
 
     Behavior on color {
@@ -104,12 +159,46 @@ Item {
       ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
     }
 
-    // Left urgency stripe (thicker when unread)
+    // HoverHandler: handles hover state without child MouseAreas breaking it
+    HoverHandler {
+      id: cardHover
+      cursorShape: Qt.ArrowCursor
+      onHoveredChanged: {
+        if (!hovered && !snoozePopup.visible && !morePopup.visible) {
+          // Keep popups closed when mouse leaves
+        }
+      }
+    }
+
+    // DragHandler: horizontal swipe-to-dismiss gesture (xAxis only, vertical flick scrolls ListView freely)
+    DragHandler {
+      id: dragHandler
+      target: cardRect
+      xAxis.enabled: true
+      yAxis.enabled: false
+      cursorShape: Qt.ArrowCursor
+      onActiveChanged: {
+        if (!active) {
+          var dist = Math.abs(cardRect.x)
+          var vel = Math.abs(dragHandler.velocity.x)
+          if (dist > Style.space(90) || vel > 600) {
+            root.triggerDismiss(cardRect.x >= 0 ? 1 : -1)
+          } else {
+            returnAnim.start()
+          }
+        }
+      }
+    }
+
+    // Left urgency stripe (thicker when unread, inset by cardRect.radius so it stays inside rounded corners)
     Rectangle {
+      id: urgencyStripe
       width: root.isRead ? Style.space(3.5) : Style.space(5.5)
       anchors.left: parent.left
       anchors.top: parent.top
       anchors.bottom: parent.bottom
+      anchors.topMargin: cardRect.radius
+      anchors.bottomMargin: cardRect.radius
       color: root.urgencyStripeColor
       radius: width / 2
 
@@ -118,43 +207,20 @@ Item {
       }
     }
 
-    // Horizontal swipe-to-dismiss gesture handling
+    // Click handler on card body to select item in ListView
     MouseArea {
-      id: cardMouse
       anchors.fill: parent
-      hoverEnabled: true
+      z: -1
       acceptedButtons: Qt.LeftButton
-      property real startX: 0
-      property bool dragging: false
-
-      onPressed: function(mouse) {
-        startX = mouse.x
-        dragging = false
-      }
-
-      onPositionChanged: function(mouse) {
-        if (!pressed) return
-        var diff = mouse.x - startX
-        if (!dragging && Math.abs(diff) > Style.space(10)) {
-          dragging = true
+      onClicked: {
+        if (ListView.view) {
+          ListView.view.currentIndex = root.ListView.view ? root.ListView.view.model.indexOf ? root.ListView.view.model.indexOf(root.notificationData) : index : index
         }
-        if (dragging) {
-          root.dragOffset = diff
-        }
-      }
-
-      onReleased: function() {
-        if (dragging) {
-          if (Math.abs(root.dragOffset) > Style.space(90)) {
-            root.triggerDismiss()
-          } else {
-            returnAnim.start()
-          }
-          dragging = false
-        }
+        root.forceActiveFocus()
       }
     }
 
+    // Card Content Column
     Column {
       id: contentCol
       anchors.left: parent.left
@@ -208,7 +274,7 @@ Item {
           font.bold: true
           color: root.foreground
           elide: Text.ElideRight
-          Layout.maximumWidth: Style.space(140)
+          Layout.maximumWidth: Style.space(130)
         }
 
         // Unread 6px Accent Dot
@@ -239,13 +305,25 @@ Item {
           color: root.dimColor
         }
 
+        // Visual Pin Indicator (Always visible when pinned so user knows without hovering)
+        Text {
+          visible: root.isPinned
+          textFormat: Text.PlainText
+          text: "\uf08d"
+          font.family: Style.font.family
+          font.pixelSize: Style.space(11)
+          color: Commons.Color.accent
+          opacity: 0.7
+          Layout.alignment: Qt.AlignVCenter
+        }
+
         Item { Layout.fillWidth: true }
 
         // ==================== HOVER TOOLBAR ====================
         Row {
           id: hoverBar
           spacing: Style.space(4)
-          opacity: (cardMouse.containsMouse || snoozePopup.visible) ? 1.0 : (root.isPinned ? 0.7 : 0.0)
+          opacity: (cardHover.hovered || snoozePopup.visible || morePopup.visible) ? 1.0 : 0.0
           visible: opacity > 0
 
           Behavior on opacity {
@@ -254,6 +332,7 @@ Item {
 
           // 1. Snooze Button
           Rectangle {
+            id: snoozeBtn
             width: Style.space(22)
             height: Style.space(22)
             radius: width / 2
@@ -277,23 +356,34 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: snoozePopup.visible = !snoozePopup.visible
+              onClicked: {
+                morePopup.visible = false
+                snoozePopup.visible = !snoozePopup.visible
+              }
             }
 
             // Snooze Duration Popup
             Rectangle {
               id: snoozePopup
               visible: false
-              z: 100
+              z: 200
               width: Style.space(110)
               height: snoozeCol.implicitHeight + Style.space(12)
-              anchors.top: parent.bottom
-              anchors.topMargin: Style.space(4)
+              // Flip upward if near bottom of viewport
+              anchors.top: flipSnoozeUp ? undefined : parent.bottom
+              anchors.bottom: flipSnoozeUp ? parent.top : undefined
+              anchors.topMargin: flipSnoozeUp ? 0 : Style.space(4)
+              anchors.bottomMargin: flipSnoozeUp ? Style.space(4) : 0
               anchors.right: parent.right
               radius: Math.max(8, Style.cornerRadius)
               color: Commons.Color.popups.background
               border.color: Commons.Color.popups.border
               border.width: 1
+
+              readonly property bool flipSnoozeUp: {
+                var pt = snoozeBtn.mapToItem(null, 0, 0)
+                return pt.y > 440
+              }
 
               Column {
                 id: snoozeCol
@@ -438,7 +528,7 @@ Item {
       // ==================== HEADLINE & BODY ====================
       Text {
         width: parent.width
-        textFormat: Text.PlainText
+        textFormat: Text.StyledText
         text: root.notificationData ? (root.notificationData.summary || "") : ""
         font.family: Style.font.family
         font.pixelSize: Math.max(13, Style.font.body)
@@ -452,7 +542,7 @@ Item {
       Text {
         width: parent.width
         visible: root.notificationData ? (root.notificationData.body !== "") : false
-        textFormat: Text.PlainText
+        textFormat: Text.StyledText
         text: root.notificationData ? (root.notificationData.body || "") : ""
         font.family: Style.font.family
         font.pixelSize: Math.max(12, Style.font.caption + 1)
@@ -509,17 +599,62 @@ Item {
         }
       }
 
-      // ==================== REAL ACTIONS & SMART ACTIONS ====================
+      // ==================== ACTIONS ROW ====================
       RowLayout {
         width: parent.width
-        visible: !!(root.cardActions && root.cardActions.total > 0)
+        visible: root.isSnoozed || !!(root.cardActions && root.cardActions.total > 0)
         spacing: Style.space(8)
 
+        // Wake Now Button (Visible when snoozed)
+        Rectangle {
+          visible: root.isSnoozed
+          height: Style.space(26)
+          implicitWidth: wakeLabel.implicitWidth + Style.space(20)
+          radius: Style.space(6)
+          scale: wakeMouse.pressed ? 0.95 : (wakeMouse.containsMouse ? 1.02 : 1.0)
+          Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+
+          color: wakeMouse.pressed
+            ? Qt.darker(Commons.Color.accent, 1.25)
+            : (wakeMouse.containsMouse ? Commons.Color.accent : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18))
+          border.color: Commons.Color.accent
+          border.width: 1
+
+          Text {
+            id: wakeLabel
+            anchors.centerIn: parent
+            textFormat: Text.PlainText
+            text: "Wake now"
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            font.bold: true
+            color: wakeMouse.containsMouse ? Commons.Color.background : Commons.Color.accent
+          }
+
+          MouseArea {
+            id: wakeMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: root.wakeRequested(root.notificationData ? root.notificationData.key : "")
+          }
+        }
+
+        // Direct Action Buttons (up to 2)
         Repeater {
-          model: (root.cardActions && root.cardActions.direct) || []
+          model: (!root.isSnoozed && root.cardActions && root.cardActions.direct) || []
 
           Rectangle {
             id: actBtn
+            property bool copied: false
+
+            Timer {
+              id: copyResetTimer
+              interval: 1200
+              repeat: false
+              onTriggered: actBtn.copied = false
+            }
+
             height: Style.space(26)
             implicitWidth: actLabel.implicitWidth + Style.space(20)
             radius: Style.space(6)
@@ -540,7 +675,7 @@ Item {
               id: actLabel
               anchors.centerIn: parent
               textFormat: Text.PlainText
-              text: modelData.label
+              text: actBtn.copied ? "Copied" : modelData.label
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -554,12 +689,11 @@ Item {
               cursorShape: Qt.PointingHandCursor
               onClicked: {
                 if (modelData.kind === "code") {
-                  Quickshell.execDetached(["wl-copy", String(modelData.value)])
-                  actLabel.text = "Copied!"
-                  Qt.callLater(function() { actLabel.text = modelData.label })
+                  root.executeCodeCopy(String(modelData.value))
+                  actBtn.copied = true
+                  copyResetTimer.restart()
                 } else if (modelData.kind === "url") {
-                  Quickshell.execDetached(["omarchy-launch-browser", String(modelData.value)])
-                  root.actionTriggered(root.notificationData ? root.notificationData.key : "", "open_url")
+                  root.executeUrlOpen(String(modelData.value))
                 } else {
                   root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(modelData.id))
                 }
@@ -570,7 +704,8 @@ Item {
 
         // More Actions Menu Button (if > 2 actions)
         Rectangle {
-          visible: !!(root.cardActions && root.cardActions.more && root.cardActions.more.length > 0)
+          id: moreBtn
+          visible: !root.isSnoozed && !!(root.cardActions && root.cardActions.more && root.cardActions.more.length > 0)
           height: Style.space(26)
           implicitWidth: moreLabel.implicitWidth + Style.space(16)
           radius: Style.space(6)
@@ -598,23 +733,34 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: morePopup.visible = !morePopup.visible
+            onClicked: {
+              snoozePopup.visible = false
+              morePopup.visible = !morePopup.visible
+            }
           }
 
           // More Actions Dropdown Menu
           Rectangle {
             id: morePopup
             visible: false
-            z: 110
+            z: 210
             width: Style.space(130)
             height: moreCol.implicitHeight + Style.space(12)
-            anchors.bottom: parent.top
-            anchors.bottomMargin: Style.space(4)
+            // Flip upward if near bottom of viewport
+            anchors.top: flipMoreUp ? undefined : parent.bottom
+            anchors.bottom: flipMoreUp ? parent.top : undefined
+            anchors.topMargin: flipMoreUp ? 0 : Style.space(4)
+            anchors.bottomMargin: flipMoreUp ? Style.space(4) : 0
             anchors.left: parent.left
             radius: Math.max(8, Style.cornerRadius)
             color: Commons.Color.popups.background
             border.color: Commons.Color.popups.border
             border.width: 1
+
+            readonly property bool flipMoreUp: {
+              var pt = moreBtn.mapToItem(null, 0, 0)
+              return pt.y > 440
+            }
 
             Column {
               id: moreCol
@@ -647,7 +793,13 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
                       morePopup.visible = false
-                      root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(modelData.id))
+                      if (modelData.kind === "code") {
+                        root.executeCodeCopy(String(modelData.value))
+                      } else if (modelData.kind === "url") {
+                        root.executeUrlOpen(String(modelData.value))
+                      } else {
+                        root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(modelData.id))
+                      }
                     }
                   }
                 }
@@ -661,9 +813,10 @@ Item {
 
       // ==================== INLINE REPLY FIELD ====================
       Rectangle {
+        id: replyBox
         width: parent.width
         height: Style.space(32)
-        visible: root.canReply
+        visible: root.canReply && !root.isSnoozed
         radius: Style.space(6)
         color: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08)
         border.color: replyInput.activeFocus ? Commons.Color.accent : root.cardBorder
@@ -697,11 +850,13 @@ Item {
                 root.replySubmitted(root.notificationData ? root.notificationData.key : "", replyInput.text.trim())
                 replyInput.text = ""
                 replyInput.focus = false
+                root.forceActiveFocus()
               }
             }
             Keys.onEscapePressed: function() {
               replyInput.text = ""
               replyInput.focus = false
+              root.forceActiveFocus()
             }
           }
 
@@ -731,6 +886,7 @@ Item {
                   root.replySubmitted(root.notificationData ? root.notificationData.key : "", replyInput.text.trim())
                   replyInput.text = ""
                   replyInput.focus = false
+                  root.forceActiveFocus()
                 }
               }
             }

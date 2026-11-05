@@ -41,6 +41,12 @@ def clear_all():
 def delete_key(key):
     if not key:
         return
+    delete_keys([key])
+
+def delete_keys(keys):
+    if not keys:
+        return
+    key_set = set(k for k in keys if k)
     for path in (HISTORY_FILE, LIVE_FILE):
         if not os.path.isfile(path):
             continue
@@ -48,12 +54,51 @@ def delete_key(key):
             with open(path, "r", encoding="utf-8") as f:
                 items = json.load(f)
             if isinstance(items, list):
-                filtered = [item for item in items if isinstance(item, dict) and item.get("key") != key]
+                filtered = [item for item in items if isinstance(item, dict) and item.get("key") not in key_set]
                 if len(filtered) != len(items):
                     atomic_write_json(path, filtered)
-        except Exception:
-            pass
-    print(f"deleted {key}")
+        except Exception as e:
+            print(f"error-delete-keys: {e}", file=sys.stderr)
+    print(f"deleted {len(key_set)} keys")
+
+def set_focus(seconds):
+    try:
+        subprocess.run(["systemctl", "--user", "stop", "omarchy-focus-timer.timer", "omarchy-focus-timer.service"],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["systemctl", "--user", "reset-failed", "omarchy-focus-timer.service"],
+                       check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+    if seconds > 0:
+        try:
+            subprocess.run([
+                "systemd-run", "--user", "--unit=omarchy-focus-timer",
+                f"--on-active={seconds}",
+                "omarchy-shell", "notifications", "setDnd", "off"
+            ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["omarchy-shell", "notifications", "setDnd", "on"],
+                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"focus-set-{seconds}s")
+        except Exception as e:
+            print(f"error-set-focus: {e}")
+            sys.exit(1)
+    elif seconds == 0:
+        try:
+            subprocess.run(["omarchy-shell", "notifications", "setDnd", "on"],
+                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("focus-on-indefinite")
+        except Exception as e:
+            print(f"error-focus-on: {e}")
+            sys.exit(1)
+    else:
+        try:
+            subprocess.run(["omarchy-shell", "notifications", "setDnd", "off"],
+                           check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print("focus-off")
+        except Exception as e:
+            print(f"error-focus-off: {e}")
+            sys.exit(1)
 
 def save_user_state(json_str):
     if not json_str:
@@ -173,7 +218,7 @@ def send_test():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: manage.py [clear | delete <key> | save-state <json> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> [action_id] | reply <key> <text> | send-test]")
+        print("Usage: manage.py [clear | delete <key> | delete-keys <keys...> | set-focus <sec> | save-state <json> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> [action_id] | reply <key> <text> | send-test]")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -182,6 +227,12 @@ def main():
     elif cmd == "delete":
         key = sys.argv[2] if len(sys.argv) > 2 else ""
         delete_key(key)
+    elif cmd == "delete-keys":
+        keys = sys.argv[2:]
+        delete_keys(keys)
+    elif cmd == "set-focus":
+        sec = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+        set_focus(sec)
     elif cmd == "save-state":
         json_data = sys.argv[2] if len(sys.argv) > 2 else "{}"
         save_user_state(json_data)

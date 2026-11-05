@@ -21,12 +21,21 @@ function extractVerificationCode(summary, body) {
   return ""
 }
 
+function sanitizeUrl(url) {
+  if (!url || typeof url !== "string") return ""
+  var trimmed = url.trim()
+  if (/^https?:\/\/[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+(?:\/[^\s<>"'{}|\\`]*)?/i.test(trimmed)) {
+    return trimmed.replace(/[.,;:!)]+$/, "")
+  }
+  return ""
+}
+
 function extractUrl(summary, body) {
   var text = (summary || "") + " " + (body || "")
   if (!text.trim()) return ""
   var m = text.match(/\bhttps?:\/\/[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+(?:\/[^\s<>"'{}|\\`]*)?/i)
   if (m && m[0]) {
-    return m[0].replace(/[.,;:!)]+$/, "")
+    return sanitizeUrl(m[0])
   }
   return ""
 }
@@ -52,6 +61,20 @@ function parseActions(raw) {
   if (!raw) return list
 
   var acts = raw.actions || raw.actionList
+  if (acts && typeof acts.count === "number") {
+    for (var m = 0; m < acts.count; m++) {
+      var itm = acts.get(m)
+      if (itm && (itm.id || itm.label)) {
+        list.push({
+          id: String(itm.id || itm.key || m),
+          label: String(itm.label || itm.text || itm.id || "Action"),
+          argv: itm.argv || null
+        })
+      }
+    }
+    return list
+  }
+
   if (Array.isArray(acts)) {
     if (acts.length > 0 && typeof acts[0] === "object") {
       for (var i = 0; i < acts.length; i++) {
@@ -269,10 +292,10 @@ function parseUserState(text) {
     var s = JSON.parse(text)
     if (s && typeof s === "object") {
       return {
-        pinned: s.pinned || {},
-        snoozed: s.snoozed || {},
-        mutedApps: s.mutedApps || {},
-        readKeys: s.readKeys || {},
+        pinned: (s.pinned && typeof s.pinned === "object" && s.pinned !== null) ? s.pinned : {},
+        snoozed: (s.snoozed && typeof s.snoozed === "object" && s.snoozed !== null) ? s.snoozed : {},
+        mutedApps: (s.mutedApps && typeof s.mutedApps === "object" && s.mutedApps !== null) ? s.mutedApps : {},
+        readKeys: (s.readKeys && typeof s.readKeys === "object" && s.readKeys !== null) ? s.readKeys : {},
         focusUntil: Number(s.focusUntil || 0)
       }
     }
@@ -291,7 +314,16 @@ function isPinned(state, key) {
 function isSnoozed(state, key, nowSec) {
   if (!state || !state.snoozed || !state.snoozed[key]) return false
   var until = Number(state.snoozed[key])
-  return isFinite(until) && until > (nowSec || Date.now() / 1000)
+  return isFinite(until) && until > (nowSec || (Date.now() / 1000))
+}
+
+function countSnoozed(items, state, nowSec) {
+  nowSec = nowSec || (Date.now() / 1000)
+  var count = 0
+  for (var i = 0; i < items.length; i++) {
+    if (isSnoozed(state, items[i].key, nowSec)) count++
+  }
+  return count
 }
 
 function isMuted(state, app) {
@@ -333,7 +365,7 @@ function sectionWeight(section) {
 }
 
 // Filters list by search, chip filter, snoozed and muted states
-function filterNotifications(items, state, activeFilter, searchQuery, nowSec) {
+function filterNotifications(items, state, activeFilter, searchQuery, nowSec, unreadAtOpen) {
   nowSec = nowSec || (Date.now() / 1000)
   var q = (searchQuery || "").trim().toLowerCase()
   var out = []
@@ -342,11 +374,17 @@ function filterNotifications(items, state, activeFilter, searchQuery, nowSec) {
     var item = items[i]
     if (!item) continue
 
-    // Skip snoozed notifications
-    if (isSnoozed(state, item.key, nowSec)) continue
+    var currentlySnoozed = isSnoozed(state, item.key, nowSec)
+    var snoozeExpired = !currentlySnoozed && (state && state.snoozed && state.snoozed[item.key] && Number(state.snoozed[item.key]) <= nowSec)
 
-    // Skip muted applications
-    if (isMuted(state, item.app)) continue
+    // Snoozed chip filter handling
+    if (activeFilter === "Snoozed") {
+      if (!currentlySnoozed) continue
+    } else {
+      if (currentlySnoozed) continue
+      // Skip muted applications only when not looking at snoozed
+      if (isMuted(state, item.app)) continue
+    }
 
     // Search query matching
     if (q) {
@@ -356,70 +394,93 @@ function filterNotifications(items, state, activeFilter, searchQuery, nowSec) {
       if (!inApp && !inSum && !inBody) continue
     }
 
-    // Filter chip matching
-    var read = isRead(state, item.key)
+    // Determine read status: expired snooze returns as unread
+    var read = snoozeExpired ? false : isRead(state, item.key)
     var pinned = isPinned(state, item.key)
 
-    if (activeFilter === "Unread" && read) continue
-    if (activeFilter === "Urgent" && item.urgency !== 2) continue
-    if (activeFilter === "Messages" && !supportsReply(item)) continue
-    if (activeFilter === "Pinned" && !pinned) continue
+    // Unread filter handling: respects unreadAtOpen snapshot so items don't vanish while open
+    if (activeFilter === "Unread") {
+      var wasUnreadAtOpen = unreadAtOpen && Boolean(unreadAtOpen[item.key])
+      if (read && !wasUnreadAtOpen && !snoozeExpired) continue
+    } else if (activeFilter === "Urgent") {
+      if (item.urgency !== 2) continue
+    } else if (activeFilter === "Messages") {
+      if (!supportsReply(item)) continue
+    } else if (activeFilter === "Pinned") {
+      if (!pinned) continue
+    }
 
     // Attach section property for ListView
     var clone = Object.assign({}, item)
     clone.sectionName = classifySection(item, state)
     clone.isRead = read
     clone.isPinned = pinned
+    clone.isSnoozed = currentlySnoozed
+    clone.effectiveTs = snoozeExpired ? Math.max(item.ts || 0, Number(state.snoozed[item.key])) : (item.ts || 0)
     out.push(clone)
   }
 
-  // Sort: Section priority first, then timestamp descending
+  // Sort: Section priority first, then effective timestamp descending
   out.sort(function(a, b) {
     var wA = sectionWeight(a.sectionName)
     var wB = sectionWeight(b.sectionName)
     if (wA !== wB) return wA - wB
-    return (b.ts || 0) - (a.ts || 0)
+    return (b.effectiveTs || b.ts || 0) - (a.effectiveTs || a.ts || 0)
   })
 
   return out
 }
 
-// Groups notifications by app if an app has 3 or more items
+// Groups notifications by app if an app has 3 or more items within each section
 function groupNotifications(items, expandedApps) {
   expandedApps = expandedApps || {}
-  var appCounts = {}
+
+  // 1. Partition by section to ensure groups never span across sections
+  var sectionGroups = {}
+  var sectionOrder = []
   for (var i = 0; i < items.length; i++) {
-    var app = items[i].app || "Other"
-    appCounts[app] = (appCounts[app] || 0) + 1
+    var sec = items[i].sectionName || "Today"
+    if (!sectionGroups[sec]) {
+      sectionGroups[sec] = []
+      sectionOrder.push(sec)
+    }
+    sectionGroups[sec].push(items[i])
   }
 
   var out = []
-  var seenGroupLeaders = {}
+  for (var s = 0; s < sectionOrder.length; s++) {
+    var secItems = sectionGroups[sectionOrder[s]]
+    var appCounts = {}
+    for (var a = 0; a < secItems.length; a++) {
+      var app = secItems[a].app || "Other"
+      appCounts[app] = (appCounts[app] || 0) + 1
+    }
 
-  for (var j = 0; j < items.length; j++) {
-    var it = items[j]
-    var appName = it.app || "Other"
-    var totalForApp = appCounts[appName] || 0
+    var seenGroupLeaders = {}
+    for (var j = 0; j < secItems.length; j++) {
+      var it = secItems[j]
+      var appName = it.app || "Other"
+      var totalForApp = appCounts[appName] || 0
 
-    if (totalForApp >= 3) {
-      if (!seenGroupLeaders[appName]) {
-        seenGroupLeaders[appName] = true
-        var isExpanded = !!expandedApps[appName]
-        var leader = Object.assign({}, it)
-        leader.isGroupHeader = true
-        leader.groupTotal = totalForApp
-        leader.groupExtraCount = totalForApp - 1
-        leader.groupExpanded = isExpanded
-        out.push(leader)
-      } else if (expandedApps[appName]) {
-        // Shown when expanded
-        var child = Object.assign({}, it)
-        child.isGroupHeader = false
-        child.isGroupChild = true
-        out.push(child)
+      if (totalForApp >= 3) {
+        if (!seenGroupLeaders[appName]) {
+          seenGroupLeaders[appName] = true
+          var isExpanded = !!expandedApps[appName]
+          var leader = Object.assign({}, it)
+          leader.isGroupHeader = true
+          leader.groupTotal = totalForApp
+          leader.groupExtraCount = totalForApp - 1
+          leader.groupExpanded = isExpanded
+          out.push(leader)
+        } else if (expandedApps[appName]) {
+          var child = Object.assign({}, it)
+          child.isGroupHeader = false
+          child.isGroupChild = true
+          out.push(child)
+        }
+      } else {
+        out.push(it)
       }
-    } else {
-      out.push(it)
     }
   }
 
