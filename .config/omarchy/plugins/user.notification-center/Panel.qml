@@ -160,14 +160,25 @@ Panel {
     }
   }
 
+  // Proxy anchor item shifted to the left so the popup card has ample breathing room and never gets cut off
+  Item {
+    id: panelAnchor
+    anchors.top: button.top
+    anchors.bottom: button.bottom
+    anchors.horizontalCenter: button.horizontalCenter
+    anchors.horizontalCenterOffset: -Style.space(70)
+    width: button.width
+  }
+
   // ---- Popout Notification Center Panel ----
   KeyboardPanel {
     id: panel
-    anchorItem: button
+    anchorItem: panelAnchor
     owner: root
     bar: root.bar
     open: root.opened
-    contentWidth: panel.fittedContentWidth(Style.space(420))
+    margin: Math.max(Style.gapsOut, Style.space(28))
+    contentWidth: panel.fittedContentWidth(Style.space(400))
     contentHeight: panel.fittedContentHeight(Style.space(640), Style.space(720))
 
     PanelKeyCatcher {
