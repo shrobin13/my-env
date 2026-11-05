@@ -1,4 +1,4 @@
-# 🛠️ my-config — Personal Dotfiles & Shell Config
+# 🛠️ my-env — Personal Dotfiles & Shell Config
 
 Personal configuration for **Arch Linux · Omarchy Quattro · Zsh · Powerlevel10k**.
 
@@ -11,7 +11,7 @@ Designed for effortless restoration whenever you reinstall Omarchy or set up a n
 Clone the repository and run `install.sh`:
 
 ```bash
-git clone <your-repo-url> ~/Work/my-config
+git clone https://github.com/shrobin13/my-env.git ~/Work/my-config
 cd ~/Work/my-config
 ./install.sh
 ```
@@ -24,7 +24,7 @@ cd ~/Work/my-config
 
 ## 📂 Managed Configurations
 
-| Source in `my-config` | Destination in `$HOME` | Purpose |
+| Source in repository | Destination in `$HOME` | Purpose |
 | :--- | :--- | :--- |
 | [`.zshrc`](.zshrc) | `~/.zshrc` | Cleaned, optimized Zsh configuration (Zinit, plugins, aliases, prompt) |
 | [`.p10k.zsh`](.p10k.zsh) | `~/.p10k.zsh` | Powerlevel10k theme configuration |
@@ -46,19 +46,3 @@ sudo pacman -S --needed zsh fzf bat eza fd ripgrep zoxide mise fastfetch yt-dlp 
 - **`bat`**: Syntax highlighting for file previews and `cat`.
 - **`yt-dlp` & `ffmpeg`**: Core engines for the `download` utility.
 - **`mise`**: Runtime and tool version manager.
-
----
-
-## 🔄 Pushing to GitHub
-
-To store this on GitHub:
-
-```bash
-cd ~/Work/my-config
-git init
-git add .
-git commit -m "Initial commit: clean Omarchy zsh config and download utility"
-git branch -M main
-git remote add origin git@github.com:<your-username>/<your-repo-name>.git
-git push -u origin main
-```
