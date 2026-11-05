@@ -257,7 +257,11 @@ Item {
             width: Style.space(22)
             height: Style.space(22)
             radius: width / 2
-            color: snoozeMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent"
+            scale: snoozeMouse.pressed ? 0.92 : (snoozeMouse.containsMouse ? 1.06 : 1.0)
+            Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+            color: snoozeMouse.pressed
+              ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.25)
+              : (snoozeMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent")
 
             Text {
               anchors.centerIn: parent
@@ -340,9 +344,13 @@ Item {
             width: Style.space(22)
             height: Style.space(22)
             radius: width / 2
-            color: root.isPinned
-              ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2)
-              : (pinMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent")
+            scale: pinMouse.pressed ? 0.92 : (pinMouse.containsMouse ? 1.06 : 1.0)
+            Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+            color: pinMouse.pressed
+              ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35)
+              : (root.isPinned
+                 ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2)
+                 : (pinMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent"))
 
             Text {
               anchors.centerIn: parent
@@ -367,7 +375,11 @@ Item {
             width: Style.space(22)
             height: Style.space(22)
             radius: width / 2
-            color: muteMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent"
+            scale: muteMouse.pressed ? 0.92 : (muteMouse.containsMouse ? 1.06 : 1.0)
+            Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+            color: muteMouse.pressed
+              ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.3)
+              : (muteMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent")
 
             Text {
               anchors.centerIn: parent
@@ -394,10 +406,14 @@ Item {
           width: Style.space(22)
           height: Style.space(22)
           radius: width / 2
-          color: closeMouse.containsMouse ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.2) : "transparent"
+          scale: closeMouse.pressed ? 0.90 : (closeMouse.containsMouse ? 1.08 : 1.0)
+          Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+          color: closeMouse.pressed
+            ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.35)
+            : (closeMouse.containsMouse ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.2) : "transparent")
 
           Behavior on color {
-            ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+            ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
           }
 
           Text {
@@ -507,12 +523,17 @@ Item {
             height: Style.space(26)
             implicitWidth: actLabel.implicitWidth + Style.space(20)
             radius: Style.space(6)
-            color: actMouse.containsMouse ? Commons.Color.accent : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.15)
+            scale: actMouse.pressed ? 0.95 : (actMouse.containsMouse ? 1.02 : 1.0)
+            Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+
+            color: actMouse.pressed
+              ? Qt.darker(Commons.Color.accent, 1.25)
+              : (actMouse.containsMouse ? Commons.Color.accent : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.15))
             border.color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35)
             border.width: 1
 
             Behavior on color {
-              ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+              ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
             }
 
             Text {
@@ -553,7 +574,11 @@ Item {
           height: Style.space(26)
           implicitWidth: moreLabel.implicitWidth + Style.space(16)
           radius: Style.space(6)
-          color: moreMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.14) : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08)
+          scale: moreMouse.pressed ? 0.95 : (moreMouse.containsMouse ? 1.02 : 1.0)
+          Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+          color: moreMouse.pressed
+            ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.22)
+            : (moreMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.14) : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08))
           border.color: root.cardBorder
           border.width: 1
 

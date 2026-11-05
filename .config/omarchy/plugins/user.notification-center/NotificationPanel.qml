@@ -230,6 +230,59 @@ Item {
   }
 
   property bool dndActive: false
+  property int currentEpochSec: Math.floor(Date.now() / 1000)
+
+  Timer {
+    id: clockTickTimer
+    interval: 1000
+    running: root.panelOpened
+    repeat: true
+    onTriggered: {
+      root.currentEpochSec = Math.floor(Date.now() / 1000)
+      if (root.dndActive && root.userState.focusUntil > 0 && root.currentEpochSec >= root.userState.focusUntil) {
+        root.setFocusDuration(-1)
+      }
+    }
+  }
+
+  function formatExpiryClock(epochSec) {
+    if (!epochSec || epochSec <= 0) return ""
+    var d = new Date(epochSec * 1000)
+    var hrs = d.getHours()
+    var mins = d.getMinutes()
+    var ampm = hrs >= 12 ? "PM" : "AM"
+    var h12 = hrs % 12
+    if (h12 === 0) h12 = 12
+    var mStr = mins < 10 ? ("0" + mins) : String(mins)
+    return h12 + ":" + mStr + " " + ampm
+  }
+
+  function formatRemainingDetailed(epochSec) {
+    if (!epochSec || epochSec <= 0) return ""
+    var diff = epochSec - root.currentEpochSec
+    if (diff <= 0) return "expired"
+    var mins = Math.ceil(diff / 60)
+    if (mins < 60) return mins + "m left"
+    var hrs = Math.floor(mins / 60)
+    var remM = mins % 60
+    return remM > 0 ? (hrs + "h " + remM + "m left") : (hrs + "h left")
+  }
+
+  readonly property string focusStatusText: {
+    if (!root.dndActive) return "Focus"
+    if (root.userState.focusUntil > 0) {
+      var remaining = Math.max(0, root.userState.focusUntil - currentEpochSec)
+      if (remaining <= 0) return "Focus: Expired"
+      var mins = Math.ceil(remaining / 60)
+      if (mins < 60) {
+        return "Focus: " + mins + "m"
+      }
+      var hrs = Math.floor(mins / 60)
+      var remMins = mins % 60
+      return remMins > 0 ? ("Focus: " + hrs + "h " + remMins + "m") : ("Focus: " + hrs + "h")
+    }
+    return "Focus: On"
+  }
 
   FileView {
     id: quietFile
@@ -264,34 +317,23 @@ Item {
 
   function setFocusDuration(seconds) {
     focusMenu.visible = false
+    var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
     if (seconds > 0) {
       root.userState.focusUntil = Math.floor(Date.now() / 1000) + seconds
       root.dndActive = true
-      actionProc.command = ["omarchy-shell", "notifications", "setDnd", "on"]
+      Quickshell.execDetached(["omarchy-shell", "notifications", "setDnd", "on"])
     } else if (seconds === 0) {
       root.userState.focusUntil = 0
       root.dndActive = true
-      actionProc.command = ["omarchy-shell", "notifications", "setDnd", "on"]
+      Quickshell.execDetached(["omarchy-shell", "notifications", "setDnd", "on"])
     } else {
+      // Turn off
       root.userState.focusUntil = 0
       root.dndActive = false
-      actionProc.command = ["omarchy-shell", "notifications", "setDnd", "off"]
+      Quickshell.execDetached(["omarchy-shell", "notifications", "setDnd", "off"])
     }
-    actionProc.running = true
-    root.saveState()
-  }
-
-  // Periodic check to auto-expire timed focus
-  Timer {
-    interval: 15000
-    running: root.dndActive && root.userState.focusUntil > 0
-    repeat: true
-    onTriggered: {
-      var now = Math.floor(Date.now() / 1000)
-      if (root.userState.focusUntil > 0 && now >= root.userState.focusUntil) {
-        root.setFocusDuration(-1)
-      }
-    }
+    var jsonText = Model.serializeUserState(root.userState)
+    Quickshell.execDetached(["python3", script, "save-state", jsonText])
   }
 
   Process {
@@ -396,23 +438,34 @@ Item {
         height: Style.space(32)
         implicitWidth: focusRow.implicitWidth + Style.space(20)
         radius: Style.space(8)
-        color: root.dndActive
-          ? Commons.Color.urgent
-          : (focusMouse.containsMouse || focusChevronMouse.containsMouse
-             ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
-             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
+
+        scale: (focusMouse.pressed || focusChevronMouse.pressed)
+          ? 0.95
+          : (focusMouse.containsMouse || focusChevronMouse.containsMouse ? 1.02 : 1.0)
+        Behavior on scale {
+          NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
+        }
+
+        color: (focusMouse.pressed || focusChevronMouse.pressed)
+          ? (root.dndActive ? Qt.darker(Commons.Color.urgent, 1.25) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22))
+          : (root.dndActive
+             ? Commons.Color.urgent
+             : ((focusMouse.containsMouse || focusChevronMouse.containsMouse)
+                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
+                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)))
+
         border.color: root.dndActive
           ? Commons.Color.urgent
-          : (focusMouse.containsMouse || focusChevronMouse.containsMouse
+          : ((focusMouse.containsMouse || focusChevronMouse.containsMouse)
              ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.5)
              : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20))
         border.width: 1
 
         Behavior on color {
-          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+          ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
         }
         Behavior on border.color {
-          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+          ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
         }
 
         RowLayout {
@@ -444,7 +497,7 @@ Item {
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
-                text: root.dndActive ? "Focus On" : "Focus"
+                text: root.focusStatusText
                 font.family: Style.font.family
                 font.pixelSize: Math.max(12, Style.font.caption)
                 font.bold: true
@@ -498,8 +551,8 @@ Item {
           id: focusMenu
           visible: false
           z: 1000
-          width: Style.space(150)
-          height: focusCol.implicitHeight + Style.space(12)
+          width: Style.space(210)
+          height: focusCol.implicitHeight + Style.space(16)
           anchors.top: parent.bottom
           anchors.topMargin: Style.space(6)
           anchors.right: parent.right
@@ -511,35 +564,116 @@ Item {
           Column {
             id: focusCol
             anchors.fill: parent
-            anchors.margins: Style.space(6)
-            spacing: Style.space(4)
+            anchors.margins: Style.space(8)
+            spacing: Style.space(6)
 
+            // Current Active Focus Status Card
+            Rectangle {
+              visible: root.dndActive
+              width: parent.width
+              height: Style.space(42)
+              radius: Style.space(6)
+              color: Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.15)
+              border.color: Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.35)
+              border.width: 1
+
+              RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Style.space(8)
+                anchors.rightMargin: Style.space(8)
+                spacing: Style.space(8)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "\uf1f6"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.space(14)
+                  color: Commons.Color.urgent
+                }
+
+                Column {
+                  Layout.fillWidth: true
+                  spacing: 1
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.userState.focusUntil > 0 ? "Focus Mode Active" : "Focus On Indefinitely"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: true
+                    color: root.foreground
+                  }
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: root.userState.focusUntil > 0
+                      ? (root.formatRemainingDetailed(root.userState.focusUntil) + " • until " + root.formatExpiryClock(root.userState.focusUntil))
+                      : "Notifications muted until turned off"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 2
+                    color: Commons.Color.urgent
+                    elide: Text.ElideRight
+                  }
+                }
+              }
+            }
+
+            // Options List
             Repeater {
               model: [
                 { label: "For 30 minutes", sec: 1800 },
                 { label: "For 1 hour", sec: 3600 },
                 { label: "Until tomorrow", sec: 86400 },
-                { label: "Until turned off", sec: 0 },
-                { label: "Turn off Focus", sec: -1 }
+                { label: "Until turned off", sec: 0 }
               ]
+
               Rectangle {
                 width: parent.width
-                height: Style.space(26)
+                height: Style.space(28)
                 radius: Style.space(5)
-                color: fOptMouse.containsMouse
-                  ? (modelData.sec === -1 ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.25) : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2))
-                  : "transparent"
+                scale: fOptMouse.pressed ? 0.96 : 1.0
+                Behavior on scale { NumberAnimation { duration: Style.duration(60) } }
 
-                Text {
-                  anchors.centerIn: parent
-                  textFormat: Text.PlainText
-                  text: modelData.label
-                  font.family: Style.font.family
-                  font.pixelSize: Style.font.caption
-                  font.bold: true
-                  color: modelData.sec === -1
-                    ? (fOptMouse.containsMouse ? Commons.Color.urgent : Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.85))
-                    : (fOptMouse.containsMouse ? Commons.Color.accent : root.foreground)
+                readonly property bool isCurrentChoice: {
+                  if (!root.dndActive) return false
+                  if (modelData.sec === 0) return root.userState.focusUntil === 0
+                  if (root.userState.focusUntil > 0) {
+                    var diff = root.userState.focusUntil - root.currentEpochSec
+                    return Math.abs(diff - modelData.sec) <= 300
+                  }
+                  return false
+                }
+
+                color: fOptMouse.pressed
+                  ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.3)
+                  : (fOptMouse.containsMouse
+                     ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.16)
+                     : (isCurrentChoice ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.10) : "transparent"))
+
+                RowLayout {
+                  anchors.fill: parent
+                  anchors.leftMargin: Style.space(8)
+                  anchors.rightMargin: Style.space(8)
+                  spacing: Style.space(6)
+
+                  Text {
+                    Layout.fillWidth: true
+                    textFormat: Text.PlainText
+                    text: modelData.label
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    font.bold: isCurrentChoice
+                    color: isCurrentChoice ? Commons.Color.accent : (fOptMouse.containsMouse ? Commons.Color.accent : root.foreground)
+                  }
+
+                  Text {
+                    visible: isCurrentChoice
+                    textFormat: Text.PlainText
+                    text: "\uf00c"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption - 1
+                    color: Commons.Color.accent
+                  }
                 }
 
                 MouseArea {
@@ -549,6 +683,60 @@ Item {
                   cursorShape: Qt.PointingHandCursor
                   onClicked: root.setFocusDuration(modelData.sec)
                 }
+              }
+            }
+
+            // Divider before Turn Off button
+            Rectangle {
+              visible: root.dndActive
+              width: parent.width
+              height: 1
+              color: root.subtleBorder
+            }
+
+            // Turn Off Button
+            Rectangle {
+              visible: root.dndActive
+              width: parent.width
+              height: Style.space(28)
+              radius: Style.space(5)
+              scale: turnOffMouse.pressed ? 0.96 : 1.0
+              Behavior on scale { NumberAnimation { duration: Style.duration(60) } }
+              color: turnOffMouse.pressed
+                ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.3)
+                : (turnOffMouse.containsMouse ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.18) : "transparent")
+
+              RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: Style.space(8)
+                anchors.rightMargin: Style.space(8)
+                spacing: Style.space(6)
+
+                Text {
+                  textFormat: Text.PlainText
+                  text: "\uf011"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  color: Commons.Color.urgent
+                }
+
+                Text {
+                  Layout.fillWidth: true
+                  textFormat: Text.PlainText
+                  text: "Turn off Focus"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                  color: Commons.Color.urgent
+                }
+              }
+
+              MouseArea {
+                id: turnOffMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.setFocusDuration(-1)
               }
             }
           }
@@ -562,19 +750,27 @@ Item {
         height: Style.space(32)
         implicitWidth: clearRow.implicitWidth + Style.space(16)
         radius: Style.space(8)
-        color: clearAllMouse.containsMouse
-          ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.22)
-          : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+        scale: clearAllMouse.pressed ? 0.95 : (clearAllMouse.containsMouse ? 1.02 : 1.0)
+        Behavior on scale {
+          NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
+        }
+
+        color: clearAllMouse.pressed
+          ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.35)
+          : (clearAllMouse.containsMouse
+             ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.22)
+             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
         border.color: clearAllMouse.containsMouse
           ? Commons.Color.urgent
           : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20)
         border.width: 1
 
         Behavior on color {
-          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+          ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
         }
         Behavior on border.color {
-          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+          ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad }
         }
 
         Row {
