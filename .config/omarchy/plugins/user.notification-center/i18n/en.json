@@ -1,0 +1,36 @@
+{
+  "title": "Control Center",
+  "dnd": "Do Not Disturb",
+  "clearAll": "Clear All",
+  "quickControls": "Quick Controls",
+  "keepAwake": "Keep Awake",
+  "stayAwakeActive": "Awake",
+  "stayAwakeIdle": "Normal",
+  "snip": "Snip",
+  "clipboard": "Clipboard",
+  "nightLight": "Night Light",
+  "nightLightOn": "Warm",
+  "nightLightOff": "Off",
+  "volume": "Volume",
+  "muted": "Muted",
+  "recent": "Recent",
+  "notifications": {
+    "one": "%1 Notification",
+    "other": "%1 Notifications"
+  },
+  "noNotifications": "No Notifications",
+  "allCaughtUp": "All caught up!",
+  "justNow": "Just now",
+  "minutesAgo": {
+    "one": "%1m ago",
+    "other": "%1m ago"
+  },
+  "hoursAgo": {
+    "one": "%1h ago",
+    "other": "%1h ago"
+  },
+  "daysAgo": {
+    "one": "%1d ago",
+    "other": "%1d ago"
+  }
+}

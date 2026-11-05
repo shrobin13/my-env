@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "user.notification-center",
+  "name": "Notification Center",
+  "version": "1.0.0",
+  "author": "Light",
+  "description": "SwayNC-inspired notification center and control panel with notification history, DND toggle, clear all, and quick settings.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Notification Center",
+    "description": "Notification history and control center panel",
+    "category": "Status",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "iconSize": 18
+    },
+    "schema": [
+      {
+        "key": "iconSize",
+        "type": "integer",
+        "label": "Icon size",
+        "min": 10,
+        "max": 24,
+        "step": 1,
+        "defaultValue": 18
+      }
+    ]
+  }
+}

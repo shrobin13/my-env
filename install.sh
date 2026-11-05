@@ -52,6 +52,7 @@ mkdir -p "$HOME/.local/bin"
 mkdir -p "$HOME/.zfunc"
 mkdir -p "$HOME/.local/state/zsh"
 mkdir -p "$HOME/.config"
+mkdir -p "$HOME/.config/omarchy/plugins"
 
 backup_file() {
   local target="$1"
@@ -88,9 +89,18 @@ install_item "$DOTFILES_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 install_item "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
 install_item "$DOTFILES_DIR/.zfunc/_download" "$HOME/.zfunc/_download"
 install_item "$DOTFILES_DIR/.config/hypr" "$HOME/.config/hypr"
+install_item "$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center" "$HOME/.config/omarchy/plugins/user.notification-center"
 
 # Ensure scripts have execute permissions
 chmod +x "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
+chmod +x "$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center/manage.py" "$HOME/.config/omarchy/plugins/user.notification-center/manage.py"
+
+# Enable Omarchy shell plugin if running on Omarchy
+if command -v omarchy >/dev/null 2>&1; then
+  info "Enabling Omarchy shell plugin user.notification-center..."
+  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  omarchy plugin enable user.notification-center --section right --before omarchy.power >/dev/null 2>&1 || true
+fi
 
 # 2. Check for required & recommended CLI tools
 bold "\n🔍 Checking system packages...\n"

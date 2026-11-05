@@ -29,6 +29,7 @@ cd ~/Work/my-config
 | [`.zshrc`](.zshrc) | `~/.zshrc` | Cleaned, optimized Zsh configuration (Zinit, plugins, aliases, prompt) |
 | [`.p10k.zsh`](.p10k.zsh) | `~/.p10k.zsh` | Powerlevel10k theme configuration |
 | [`.config/hypr/`](.config/hypr/) | `~/.config/hypr/` | Omarchy Hyprland Lua config (bindings, monitors, look & feel, inputs) |
+| [`.config/omarchy/plugins/user.notification-center/`](.config/omarchy/plugins/user.notification-center/) | `~/.config/omarchy/plugins/user.notification-center/` | SwayNC-inspired Notification Center & Quick Controls shell plugin |
 | [`bin/download`](bin/download) | `~/.local/bin/download` | High-performance `yt-dlp` frontend CLI utility |
 | [`.zfunc/_download`](.zfunc/_download) | `~/.zfunc/_download` | Autoloaded Zsh completions for `download` |
 
