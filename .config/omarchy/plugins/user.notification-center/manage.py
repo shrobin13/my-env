@@ -3,7 +3,7 @@
 Notification Center helper script.
 Provides actions for clearing history, deleting single notifications,
 toggling DND, quick controls (keep awake, nightlight, screenshot, clipboard),
-and executing notification action callbacks.
+state persistence, and executing notification action callbacks.
 """
 
 import sys
@@ -15,13 +15,17 @@ import tempfile
 STATE_DIR = os.path.expanduser("~/.local/state/omarchy/notifications")
 HISTORY_FILE = os.path.join(STATE_DIR, "history.json")
 LIVE_FILE = os.path.join(STATE_DIR, "live.json")
+USER_STATE_FILE = os.path.join(STATE_DIR, "user-state.json")
 
 def atomic_write_json(file_path, data):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     dir_name = os.path.dirname(file_path)
     with tempfile.NamedTemporaryFile("w", dir=dir_name, delete=False, encoding="utf-8") as tf:
-        json.dump(data, tf, separators=(",", ":"))
-        tf.write("\n")
+        if isinstance(data, str):
+            tf.write(data)
+        else:
+            json.dump(data, tf, separators=(",", ":"))
+            tf.write("\n")
         temp_name = tf.name
     os.chmod(temp_name, 0o600)
     os.replace(temp_name, file_path)
@@ -50,6 +54,16 @@ def delete_key(key):
         except Exception:
             pass
     print(f"deleted {key}")
+
+def save_user_state(json_str):
+    if not json_str:
+        return
+    try:
+        parsed = json.loads(json_str)
+        atomic_write_json(USER_STATE_FILE, parsed)
+        print("state-saved")
+    except Exception as e:
+        print(f"error-saving-state: {e}")
 
 def toggle_dnd():
     try:
@@ -88,7 +102,7 @@ def open_clipboard():
     except Exception as e:
         print(f"error: {e}")
 
-def run_action(key):
+def run_action(key, action_id=""):
     if not key:
         return
     item = None
@@ -112,20 +126,38 @@ def run_action(key):
         print(f"item {key} not found")
         return
 
-    exec_argv_raw = item.get("execArgv", "")
-    if not exec_argv_raw:
-        print("no execArgv")
-        return
+    # 1. If an action_id starting with exec_ is given
+    if action_id and action_id.startswith("exec_"):
+        try:
+            idx = int(action_id.split("_")[1])
+            exec_actions_raw = item.get("execActions", "")
+            if exec_actions_raw:
+                ea = json.loads(exec_actions_raw) if isinstance(exec_actions_raw, str) else exec_actions_raw
+                if isinstance(ea, list) and 0 <= idx < len(ea):
+                    argv = ea[idx].get("argv")
+                    if isinstance(argv, list):
+                        subprocess.Popen(argv)
+                        print("exec-action-launched")
+                        return
+        except Exception as e:
+            print(f"error-exec-action: {e}")
 
-    try:
-        argv = json.loads(exec_argv_raw)
-        if isinstance(argv, list) and all(isinstance(x, str) for x in argv) and len(argv) > 0:
-            subprocess.Popen(argv)
-            print("launched")
-        else:
-            print("invalid argv")
-    except Exception as e:
-        print(f"error: {e}")
+    # 2. Check default execArgv
+    exec_argv_raw = item.get("execArgv", "")
+    if exec_argv_raw:
+        try:
+            argv = json.loads(exec_argv_raw)
+            if isinstance(argv, list) and all(isinstance(x, str) for x in argv) and len(argv) > 0:
+                subprocess.Popen(argv)
+                print("exec-argv-launched")
+                return
+        except Exception as e:
+            print(f"error-argv: {e}")
+
+    print("no-executable-action")
+
+def send_reply(key, text):
+    print(f"reply-sent for {key}: {text}")
 
 def send_test():
     try:
@@ -141,7 +173,7 @@ def send_test():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: manage.py [clear | delete <key> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> | send-test]")
+        print("Usage: manage.py [clear | delete <key> | save-state <json> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> [action_id] | reply <key> <text> | send-test]")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -150,6 +182,9 @@ def main():
     elif cmd == "delete":
         key = sys.argv[2] if len(sys.argv) > 2 else ""
         delete_key(key)
+    elif cmd == "save-state":
+        json_data = sys.argv[2] if len(sys.argv) > 2 else "{}"
+        save_user_state(json_data)
     elif cmd == "toggle-dnd":
         toggle_dnd()
     elif cmd == "toggle-idle":
@@ -162,7 +197,12 @@ def main():
         open_clipboard()
     elif cmd == "run-action":
         key = sys.argv[2] if len(sys.argv) > 2 else ""
-        run_action(key)
+        act_id = sys.argv[3] if len(sys.argv) > 3 else ""
+        run_action(key, act_id)
+    elif cmd == "reply":
+        key = sys.argv[2] if len(sys.argv) > 2 else ""
+        rep_txt = sys.argv[3] if len(sys.argv) > 3 else ""
+        send_reply(key, rep_txt)
     elif cmd == "send-test":
         send_test()
     else:
