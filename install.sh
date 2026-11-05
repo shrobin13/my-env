@@ -51,6 +51,7 @@ bold "\n🚀 Installing my-config ($MODE mode) from: $DOTFILES_DIR\n"
 mkdir -p "$HOME/.local/bin"
 mkdir -p "$HOME/.zfunc"
 mkdir -p "$HOME/.local/state/zsh"
+mkdir -p "$HOME/.config"
 
 backup_file() {
   local target="$1"
@@ -86,6 +87,7 @@ install_item "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
 install_item "$DOTFILES_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 install_item "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
 install_item "$DOTFILES_DIR/.zfunc/_download" "$HOME/.zfunc/_download"
+install_item "$DOTFILES_DIR/.config/hypr" "$HOME/.config/hypr"
 
 # Ensure scripts have execute permissions
 chmod +x "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"

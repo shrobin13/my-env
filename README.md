@@ -28,6 +28,7 @@ cd ~/Work/my-config
 | :--- | :--- | :--- |
 | [`.zshrc`](.zshrc) | `~/.zshrc` | Cleaned, optimized Zsh configuration (Zinit, plugins, aliases, prompt) |
 | [`.p10k.zsh`](.p10k.zsh) | `~/.p10k.zsh` | Powerlevel10k theme configuration |
+| [`.config/hypr/`](.config/hypr/) | `~/.config/hypr/` | Omarchy Hyprland Lua config (bindings, monitors, look & feel, inputs) |
 | [`bin/download`](bin/download) | `~/.local/bin/download` | High-performance `yt-dlp` frontend CLI utility |
 | [`.zfunc/_download`](.zfunc/_download) | `~/.zfunc/_download` | Autoloaded Zsh completions for `download` |
 
