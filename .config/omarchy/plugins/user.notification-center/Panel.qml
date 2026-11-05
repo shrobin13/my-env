@@ -182,6 +182,7 @@ Panel {
         anchors.margins: Style.space(16)
         bar: root.bar
         panelOpened: root.opened
+        dndActive: root.dndActive
         rawNotifications: root.notifications
         onCloseRequested: root.close()
       }

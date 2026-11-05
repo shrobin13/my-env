@@ -229,21 +229,76 @@ Item {
     actionProc.running = true
   }
 
+  property bool dndActive: false
+
+  FileView {
+    id: quietFile
+    path: Quickshell.env("HOME") + "/.local/state/omarchy/notifications/quiet.json"
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: root.updateQuiet()
+  }
+
+  function updateQuiet() {
+    try {
+      var raw = quietFile.text()
+      if (raw && raw.trim()) {
+        var parsed = JSON.parse(raw)
+        root.dndActive = !!parsed.dnd
+      } else {
+        root.dndActive = false
+      }
+    } catch (e) {
+      root.dndActive = false
+    }
+  }
+
+  function toggleFocus() {
+    if (root.dndActive) {
+      root.setFocusDuration(-1)
+    } else {
+      root.setFocusDuration(0)
+    }
+  }
+
   function setFocusDuration(seconds) {
     focusMenu.visible = false
     if (seconds > 0) {
       root.userState.focusUntil = Math.floor(Date.now() / 1000) + seconds
+      root.dndActive = true
+      actionProc.command = ["omarchy-shell", "notifications", "setDnd", "on"]
+    } else if (seconds === 0) {
+      root.userState.focusUntil = 0
+      root.dndActive = true
       actionProc.command = ["omarchy-shell", "notifications", "setDnd", "on"]
     } else {
       root.userState.focusUntil = 0
-      actionProc.command = ["omarchy-shell", "notifications", "toggleDnd"]
+      root.dndActive = false
+      actionProc.command = ["omarchy-shell", "notifications", "setDnd", "off"]
     }
     actionProc.running = true
     root.saveState()
   }
 
+  // Periodic check to auto-expire timed focus
+  Timer {
+    interval: 15000
+    running: root.dndActive && root.userState.focusUntil > 0
+    repeat: true
+    onTriggered: {
+      var now = Math.floor(Date.now() / 1000)
+      if (root.userState.focusUntil > 0 && now >= root.userState.focusUntil) {
+        root.setFocusDuration(-1)
+      }
+    }
+  }
+
   Process {
     id: actionProc
+    onExited: function(exitCode) {
+      quietFile.reload()
+    }
   }
 
   Timer {
@@ -291,13 +346,26 @@ Item {
     }
   }
 
+  // Background click catcher to dismiss focusMenu if clicking outside
+  MouseArea {
+    id: focusMenuDismissArea
+    anchors.fill: parent
+    z: 490
+    visible: focusMenu.visible
+    hoverEnabled: true
+    acceptedButtons: Qt.AllButtons
+    onClicked: focusMenu.visible = false
+  }
+
   ColumnLayout {
     anchors.fill: parent
     spacing: Style.space(12)
 
     // ==================== SECTION 1: HEADER ====================
     RowLayout {
+      id: headerRow
       Layout.fillWidth: true
+      z: 500
 
       Column {
         spacing: Style.space(2)
@@ -326,56 +394,114 @@ Item {
       Rectangle {
         id: focusBtn
         height: Style.space(32)
-        implicitWidth: focusRow.implicitWidth + Style.space(18)
-        radius: height / 2
-        color: root.userState.focusUntil > 0
+        implicitWidth: focusRow.implicitWidth + Style.space(20)
+        radius: Style.space(8)
+        color: root.dndActive
           ? Commons.Color.urgent
-          : (focusMouse.containsMouse ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12) : root.subtleBg)
-        border.color: root.userState.focusUntil > 0 ? Commons.Color.urgent : root.subtleBorder
+          : (focusMouse.containsMouse || focusChevronMouse.containsMouse
+             ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
+             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
+        border.color: root.dndActive
+          ? Commons.Color.urgent
+          : (focusMouse.containsMouse || focusChevronMouse.containsMouse
+             ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.5)
+             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20))
         border.width: 1
 
-        Row {
+        Behavior on color {
+          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+        }
+        Behavior on border.color {
+          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+        }
+
+        RowLayout {
           id: focusRow
-          anchors.centerIn: parent
+          anchors.fill: parent
+          anchors.leftMargin: Style.space(10)
+          anchors.rightMargin: Style.space(8)
           spacing: Style.space(6)
 
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: root.userState.focusUntil > 0 ? "\uf1f6" : "\uf0f3"
-            font.family: Style.font.family
-            font.pixelSize: Style.space(12)
-            color: root.userState.focusUntil > 0 ? Commons.Color.background : root.foreground
+          // Clickable main body: Click to toggle Focus ON / OFF directly
+          Item {
+            Layout.fillHeight: true
+            implicitWidth: focusMainRow.implicitWidth
+
+            Row {
+              id: focusMainRow
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: Style.space(6)
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.dndActive ? "\uf1f6" : "\uf0f3"
+                font.family: Style.font.family
+                font.pixelSize: Style.space(12)
+                color: root.dndActive ? Commons.Color.background : Commons.Color.accent
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                textFormat: Text.PlainText
+                text: root.dndActive ? "Focus On" : "Focus"
+                font.family: Style.font.family
+                font.pixelSize: Math.max(12, Style.font.caption)
+                font.bold: true
+                color: root.dndActive ? Commons.Color.background : root.foreground
+              }
+            }
+
+            MouseArea {
+              id: focusMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: root.toggleFocus()
+            }
           }
 
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: "Focus"
-            font.family: Style.font.family
-            font.pixelSize: Math.max(12, Style.font.caption)
-            font.bold: true
-            color: root.userState.focusUntil > 0 ? Commons.Color.background : root.foreground
+          // Small divider line
+          Rectangle {
+            width: 1
+            height: Style.space(14)
+            color: root.dndActive ? Qt.rgba(0, 0, 0, 0.25) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22)
+            Layout.alignment: Qt.AlignVCenter
+          }
+
+          // Dropdown chevron button: Click to open duration menu
+          Item {
+            Layout.fillHeight: true
+            implicitWidth: Style.space(14)
+
+            Text {
+              anchors.centerIn: parent
+              textFormat: Text.PlainText
+              text: focusMenu.visible ? "\uf0d8" : "\uf0d7"
+              font.family: Style.font.family
+              font.pixelSize: Style.space(10)
+              color: root.dndActive ? Commons.Color.background : (focusChevronMouse.containsMouse ? Commons.Color.accent : root.dimColor)
+            }
+
+            MouseArea {
+              id: focusChevronMouse
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onClicked: focusMenu.visible = !focusMenu.visible
+            }
           }
         }
 
-        MouseArea {
-          id: focusMouse
-          anchors.fill: parent
-          hoverEnabled: true
-          cursorShape: Qt.PointingHandCursor
-          onClicked: focusMenu.visible = !focusMenu.visible
-        }
-
-        // Focus Menu
+        // Focus Duration Menu Dropdown
         Rectangle {
           id: focusMenu
           visible: false
-          z: 200
-          width: Style.space(140)
+          z: 1000
+          width: Style.space(150)
           height: focusCol.implicitHeight + Style.space(12)
           anchors.top: parent.bottom
-          anchors.topMargin: Style.space(4)
+          anchors.topMargin: Style.space(6)
           anchors.right: parent.right
           radius: Math.max(8, Style.cornerRadius)
           color: Commons.Color.popups.background
@@ -393,13 +519,16 @@ Item {
                 { label: "For 30 minutes", sec: 1800 },
                 { label: "For 1 hour", sec: 3600 },
                 { label: "Until tomorrow", sec: 86400 },
-                { label: "Until turned off", sec: 0 }
+                { label: "Until turned off", sec: 0 },
+                { label: "Turn off Focus", sec: -1 }
               ]
               Rectangle {
                 width: parent.width
                 height: Style.space(26)
-                radius: Style.space(4)
-                color: fOptMouse.containsMouse ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2) : "transparent"
+                radius: Style.space(5)
+                color: fOptMouse.containsMouse
+                  ? (modelData.sec === -1 ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.25) : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2))
+                  : "transparent"
 
                 Text {
                   anchors.centerIn: parent
@@ -408,7 +537,9 @@ Item {
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption
                   font.bold: true
-                  color: fOptMouse.containsMouse ? Commons.Color.accent : root.foreground
+                  color: modelData.sec === -1
+                    ? (fOptMouse.containsMouse ? Commons.Color.urgent : Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.85))
+                    : (fOptMouse.containsMouse ? Commons.Color.accent : root.foreground)
                 }
 
                 MouseArea {
@@ -430,10 +561,21 @@ Item {
         visible: root.countAll > 0
         height: Style.space(32)
         implicitWidth: clearRow.implicitWidth + Style.space(16)
-        radius: height / 2
-        color: clearAllMouse.containsMouse ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.18) : root.subtleBg
-        border.color: clearAllMouse.containsMouse ? Commons.Color.urgent : root.subtleBorder
+        radius: Style.space(8)
+        color: clearAllMouse.containsMouse
+          ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.22)
+          : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+        border.color: clearAllMouse.containsMouse
+          ? Commons.Color.urgent
+          : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20)
         border.width: 1
+
+        Behavior on color {
+          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+        }
+        Behavior on border.color {
+          ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
+        }
 
         Row {
           id: clearRow
