@@ -295,6 +295,7 @@ function defaultUserState() {
     mutedApps: {},
     readKeys: {},
     deletedKeys: {},
+    clearedBefore: 0,
     focusUntil: 0,
     focusPreset: ""
   }
@@ -311,6 +312,7 @@ function parseUserState(text) {
         mutedApps: (s.mutedApps && typeof s.mutedApps === "object" && s.mutedApps !== null) ? s.mutedApps : {},
         readKeys: (s.readKeys && typeof s.readKeys === "object" && s.readKeys !== null) ? s.readKeys : {},
         deletedKeys: (s.deletedKeys && typeof s.deletedKeys === "object" && s.deletedKeys !== null) ? s.deletedKeys : {},
+        clearedBefore: Number(s.clearedBefore || 0),
         focusUntil: Number(s.focusUntil || 0),
         focusPreset: String(s.focusPreset || "")
       }
@@ -349,6 +351,15 @@ function isMuted(state, app) {
 
 function isRead(state, key) {
   return !!(state && state.readKeys && state.readKeys[key])
+}
+
+function isDeleted(state, key) {
+  return !!(state && state.deletedKeys && state.deletedKeys[key])
+}
+
+function isCleared(state, item) {
+  return isDeleted(state, item.key) ||
+    (state && Number(state.clearedBefore) > 0 && Number(item.ts) > 0 && Number(item.ts) <= Number(state.clearedBefore))
 }
 
 // -----------------------------------------------------------------------------
@@ -390,6 +401,8 @@ function filterNotifications(items, state, activeFilter, searchQuery, nowSec, un
   for (var i = 0; i < items.length; i++) {
     var item = items[i]
     if (!item) continue
+
+    if (isCleared(state, item)) continue
 
     var currentlySnoozed = isSnoozed(state, item.key, nowSec)
     var snoozeExpired = !currentlySnoozed && (state && state.snoozed && state.snoozed[item.key] && Number(state.snoozed[item.key]) <= nowSec)
@@ -511,7 +524,7 @@ function computeUnreadCount(notifications, userState, nowSec) {
   for (var i = 0; i < notifications.length; i++) {
     var it = notifications[i]
     if (!it) continue
-    if (!isRead(userState, it.key) && !isSnoozed(userState, it.key, nowSec) && !isMuted(userState, it.app)) {
+    if (!isCleared(userState, it) && !isRead(userState, it.key) && !isSnoozed(userState, it.key, nowSec) && !isMuted(userState, it.app)) {
       count++
     }
   }

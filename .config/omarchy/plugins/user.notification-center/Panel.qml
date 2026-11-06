@@ -23,7 +23,7 @@ Panel {
     var nowSec = Math.floor(Date.now() / 1000)
     for (var i = 0; i < notifications.length; i++) {
       var it = notifications[i]
-      if (!Model.isRead(userState, it.key) && !Model.isSnoozed(userState, it.key, nowSec) && !Model.isMuted(userState, it.app) &&
+      if (!Model.isCleared(userState, it) && !Model.isRead(userState, it.key) && !Model.isSnoozed(userState, it.key, nowSec) && !Model.isMuted(userState, it.app) &&
           !notifPanel.committedDeletes[it.key] && !notifPanel.pendingDeletesMap[it.key]) {
         count++
       }

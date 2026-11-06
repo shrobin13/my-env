@@ -453,6 +453,9 @@ Item {
 
     panelRoot.pendingDeletes = newDeletes
     panelRoot.pendingDeletesMap = newMap
+    if (toClear.length === panelRoot.activeNotifications.length) {
+      panelRoot.userState.clearedBefore = Math.floor(Date.now() / 1000)
+    }
 
     panelRoot.undoMessage = strings.tn("notificationsCleared", newDeletes.length).arg(newDeletes.length)
     panelRoot.undoAction = "delete"
@@ -475,15 +478,14 @@ Item {
     panelRoot.userState.deletedKeys = deleted
     panelRoot.userStateChanged()
     panelRoot.saveState()
-    panelRoot.pendingDeletes = []
-    panelRoot.pendingDeletesMap = ({})
-    panelRoot.undoVisible = false
-    undoTimer.stop()
-
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
     for (var offset = 0; offset < keys.length; offset += 50) {
       Quickshell.execDetached(["python3", script, "delete-keys", "--"].concat(keys.slice(offset, offset + 50)))
     }
+    panelRoot.pendingDeletes = []
+    panelRoot.pendingDeletesMap = ({})
+    panelRoot.undoVisible = false
+    undoTimer.stop()
   }
 
   function performUndo() {

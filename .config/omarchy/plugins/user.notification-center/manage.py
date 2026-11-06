@@ -12,6 +12,7 @@ import json
 import subprocess
 import tempfile
 import re
+import time
 
 STATE_DIR = os.path.expanduser("~/.local/state/omarchy/notifications")
 HISTORY_FILE = os.path.join(STATE_DIR, "history.json")
@@ -53,6 +54,21 @@ def prune_user_state(keys_to_remove):
         print(f"error-prune-state: {e}", file=sys.stderr)
 
 def clear_all():
+    deleted_keys = set()
+    for path in (HISTORY_FILE, LIVE_FILE):
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                items = json.load(f)
+            if isinstance(items, list):
+                deleted_keys.update(
+                    item.get("key") for item in items
+                    if isinstance(item, dict) and item.get("key")
+                )
+        except Exception as e:
+            print(f"error-read-clear-keys: {e}", file=sys.stderr)
+
     atomic_write_json(HISTORY_FILE, [])
     atomic_write_json(LIVE_FILE, [])
     try:
@@ -69,6 +85,13 @@ def clear_all():
                 s["pinned"] = {}
                 s["snoozed"] = {}
                 s["readKeys"] = {}
+                s["clearedBefore"] = int(time.time())
+                deleted = s.get("deletedKeys")
+                if not isinstance(deleted, dict):
+                    deleted = {}
+                for key in deleted_keys:
+                    deleted[key] = True
+                s["deletedKeys"] = deleted
                 atomic_write_json(USER_STATE_FILE, s)
         except Exception:
             pass
