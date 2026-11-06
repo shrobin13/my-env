@@ -16,6 +16,7 @@ STATE_DIR = os.path.expanduser("~/.local/state/omarchy/notifications")
 HISTORY_FILE = os.path.join(STATE_DIR, "history.json")
 LIVE_FILE = os.path.join(STATE_DIR, "live.json")
 USER_STATE_FILE = os.path.join(STATE_DIR, "user-state.json")
+QUIET_FILE = os.path.join(STATE_DIR, "quiet.json")
 
 def atomic_write_json(file_path, data):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -25,10 +26,30 @@ def atomic_write_json(file_path, data):
             tf.write(data)
         else:
             json.dump(data, tf, separators=(",", ":"))
-            tf.write("\n")
         temp_name = tf.name
     os.chmod(temp_name, 0o600)
     os.replace(temp_name, file_path)
+
+def prune_user_state(keys_to_remove):
+    if not os.path.isfile(USER_STATE_FILE) or not keys_to_remove:
+        return
+    try:
+        with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+            s = json.load(f)
+        if not isinstance(s, dict):
+            return
+        changed = False
+        for field in ("pinned", "snoozed", "readKeys"):
+            d = s.get(field)
+            if isinstance(d, dict):
+                for k in keys_to_remove:
+                    if k in d:
+                        del d[k]
+                        changed = True
+        if changed:
+            atomic_write_json(USER_STATE_FILE, s)
+    except Exception as e:
+        print(f"error-prune-state: {e}", file=sys.stderr)
 
 def clear_all():
     atomic_write_json(HISTORY_FILE, [])
@@ -36,6 +57,20 @@ def clear_all():
         subprocess.run(["omarchy-shell", "notifications", "dismissAll"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
+
+    # Clear keys from user state
+    if os.path.isfile(USER_STATE_FILE):
+        try:
+            with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+                s = json.load(f)
+            if isinstance(s, dict):
+                s["pinned"] = {}
+                s["snoozed"] = {}
+                s["readKeys"] = {}
+                atomic_write_json(USER_STATE_FILE, s)
+        except Exception:
+            pass
+
     print("cleared")
 
 def delete_key(key):
@@ -59,6 +94,8 @@ def delete_keys(keys):
                     atomic_write_json(path, filtered)
         except Exception as e:
             print(f"error-delete-keys: {e}", file=sys.stderr)
+
+    prune_user_state(key_set)
     print(f"deleted {len(key_set)} keys")
 
 def set_focus(seconds):
@@ -70,12 +107,14 @@ def set_focus(seconds):
     except Exception:
         pass
 
+    script_path = os.path.abspath(__file__)
+
     if seconds > 0:
         try:
             subprocess.run([
                 "systemd-run", "--user", "--unit=omarchy-focus-timer",
                 f"--on-active={seconds}",
-                "omarchy-shell", "notifications", "setDnd", "off"
+                "python3", script_path, "set-focus", "-1"
             ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             subprocess.run(["omarchy-shell", "notifications", "setDnd", "on"],
                            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -95,6 +134,17 @@ def set_focus(seconds):
         try:
             subprocess.run(["omarchy-shell", "notifications", "setDnd", "off"],
                            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Reset focusUntil in user-state.json
+            if os.path.isfile(USER_STATE_FILE):
+                try:
+                    with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+                        s = json.load(f)
+                    if isinstance(s, dict) and s.get("focusUntil", 0) != 0:
+                        s["focusUntil"] = 0
+                        s["focusPreset"] = ""
+                        atomic_write_json(USER_STATE_FILE, s)
+                except Exception:
+                    pass
             print("focus-off")
         except Exception as e:
             print(f"error-focus-off: {e}")
@@ -112,7 +162,24 @@ def save_user_state(json_str):
 
 def toggle_dnd():
     try:
+        was_enabled = False
+        if os.path.isfile(QUIET_FILE):
+            try:
+                with open(QUIET_FILE, "r", encoding="utf-8") as f:
+                    was_enabled = bool(json.load(f).get("dnd", False))
+            except Exception:
+                pass
         res = subprocess.run(["omarchy-shell", "notifications", "toggleDnd"], capture_output=True, text=True, check=False)
+        if not was_enabled and os.path.isfile(USER_STATE_FILE):
+            try:
+                with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+                if isinstance(state, dict) and state.get("focusUntil", 0):
+                    state["focusUntil"] = 0
+                    state["focusPreset"] = "0"
+                    atomic_write_json(USER_STATE_FILE, state)
+            except Exception as e:
+                print(f"error-reset-focus: {e}", file=sys.stderr)
         print(res.stdout.strip())
     except Exception as e:
         print(f"error: {e}")
@@ -199,10 +266,18 @@ def run_action(key, action_id=""):
         except Exception as e:
             print(f"error-argv: {e}")
 
-    print("no-executable-action")
+    # 3. Focus application window if an app name is associated
+    app = (item.get("app") or item.get("source") or "").strip()
+    if app and app != "notify-send" and app != "System":
+        try:
+            subprocess.run(["omarchy-shell", "user.notification-center", "close"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(["omarchy-hyprland-focus-app", app])
+            print(f"app-focus-launched: {app}")
+            return
+        except Exception as e:
+            print(f"error-focus-app: {e}")
 
-def send_reply(key, text):
-    print(f"reply-sent for {key}: {text}")
+    print("no-executable-action")
 
 def send_test():
     try:
@@ -218,7 +293,7 @@ def send_test():
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: manage.py [clear | delete <key> | delete-keys <keys...> | set-focus <sec> | save-state <json> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> [action_id] | reply <key> <text> | send-test]")
+        print("Usage: manage.py [clear | delete <key> | delete-keys <keys...> | set-focus <sec> | save-state <json> | toggle-dnd | toggle-idle | toggle-nightlight | snip | clipboard | run-action <key> [action_id] | send-test]")
         sys.exit(1)
 
     cmd = sys.argv[1]
@@ -229,9 +304,14 @@ def main():
         delete_key(key)
     elif cmd == "delete-keys":
         keys = sys.argv[2:]
+        if keys[:1] == ["--"]:
+            keys = keys[1:]
         delete_keys(keys)
     elif cmd == "set-focus":
-        sec = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+        args = sys.argv[2:]
+        if args[:1] == ["--"]:
+            args = args[1:]
+        sec = int(args[0]) if args else 0
         set_focus(sec)
     elif cmd == "save-state":
         json_data = sys.argv[2] if len(sys.argv) > 2 else "{}"
@@ -247,13 +327,12 @@ def main():
     elif cmd == "clipboard":
         open_clipboard()
     elif cmd == "run-action":
-        key = sys.argv[2] if len(sys.argv) > 2 else ""
-        act_id = sys.argv[3] if len(sys.argv) > 3 else ""
+        args = sys.argv[2:]
+        if args[:1] == ["--"]:
+            args = args[1:]
+        key = args[0] if args else ""
+        act_id = args[1] if len(args) > 1 else ""
         run_action(key, act_id)
-    elif cmd == "reply":
-        key = sys.argv[2] if len(sys.argv) > 2 else ""
-        rep_txt = sys.argv[3] if len(sys.argv) > 3 else ""
-        send_reply(key, rep_txt)
     elif cmd == "send-test":
         send_test()
     else:

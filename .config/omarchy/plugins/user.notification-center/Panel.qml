@@ -19,10 +19,12 @@ Panel {
 
   readonly property int unreadCount: {
     var count = 0
-    var userState = notifPanel ? notifPanel.userState : Model.defaultUserState()
+    var userState = notifPanel.userState
+    var nowSec = Math.floor(Date.now() / 1000)
     for (var i = 0; i < notifications.length; i++) {
       var it = notifications[i]
-      if (!Model.isRead(userState, it.key) && !Model.isSnoozed(userState, it.key)) {
+      if (!Model.isRead(userState, it.key) && !Model.isSnoozed(userState, it.key, nowSec) && !Model.isMuted(userState, it.app) &&
+          !notifPanel.committedDeletes[it.key] && !notifPanel.pendingDeletesMap[it.key]) {
         count++
       }
     }
@@ -35,12 +37,13 @@ Panel {
 
   readonly property color foreground: bar ? bar.foreground : Commons.Color.foreground
   readonly property color dimColor: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.65)
-  readonly property real iconSize: Math.max(10, Math.min(24, Number(setting("iconSize", 18))))
 
   function updateNotifications() {
-    var liveText = liveFile.text()
-    var historyText = historyFile.text()
-    root.notifications = Model.parseNotifications(liveText, historyText)
+    try {
+      root.notifications = Model.parseNotifications(liveFile.text(), historyFile.text())
+    } catch (e) {
+      root.notifications = []
+    }
   }
 
   function updateQuiet() {
@@ -64,9 +67,8 @@ Panel {
   }
 
   function toggleDnd() {
-    actionProc.command = ["omarchy-shell", "notifications", "toggleDnd"]
-    actionProc.running = true
-    root.dndActive = !root.dndActive
+    var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
+    Quickshell.execDetached(["python3", script, "toggle-dnd"])
   }
 
   function open() {
@@ -80,13 +82,6 @@ Panel {
 
   function toggle() {
     opened ? close() : open()
-  }
-
-  Process {
-    id: actionProc
-    onExited: function(exitCode) {
-      root.refresh()
-    }
   }
 
   Commons.Translations {
@@ -121,10 +116,10 @@ Panel {
     onLoaded: root.updateQuiet()
   }
 
-  // Periodic refresh
+  // Periodic refresh (30s) to reconcile snoozed expiry and time updates
   Timer {
     interval: 30000
-    running: root.opened
+    running: true
     repeat: true
     onTriggered: root.updateNotifications()
   }
@@ -143,7 +138,8 @@ Panel {
     text: root.dndActive ? "\uf1f6" : "\uf0f3"
     active: root.opened
     slotSize: root.neededWidth
-    fixedWidth: root.neededWidth
+    fixedWidth: bar && bar.vertical ? -1 : root.neededWidth
+    fixedHeight: bar && bar.vertical ? root.neededWidth : -1
     labelText: root.unreadCount > 0 ? (root.unreadCount > 99 ? "99+" : String(root.unreadCount)) : ""
     tooltipText: root.dndActive
       ? strings.t("dnd")
@@ -160,36 +156,36 @@ Panel {
     }
   }
 
-  // Proxy anchor item shifted to the left so the popup card has ample breathing room and never gets cut off
-  Item {
-    id: panelAnchor
-    anchors.top: button.top
-    anchors.bottom: button.bottom
-    anchors.horizontalCenter: button.horizontalCenter
-    anchors.horizontalCenterOffset: -Style.space(70)
-    width: button.width
-  }
-
   // ---- Popout Notification Center Panel ----
   KeyboardPanel {
     id: panel
-    anchorItem: panelAnchor
+    anchorItem: button
+    focusTarget: keyCatcher
     owner: root
     bar: root.bar
     open: root.opened
-    margin: Math.max(Style.gapsOut, Style.space(28))
-    contentWidth: panel.fittedContentWidth(Style.space(400))
+    margin: Style.gapsOut
+    contentWidth: panel.fittedContentWidth(
+      Math.max(Style.space(280), Math.min(Style.space(500), panel.screenW - (2 * Style.gapsOut)))
+    )
     contentHeight: panel.fittedContentHeight(Style.space(640), Style.space(720))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      clip: true
+      blocked: notifPanel.isInputActive
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
+      onMoveRequested: function(dx, dy) { notifPanel.moveCursor(dx, dy) }
+      onActivateRequested: notifPanel.activateSelected()
+      onDeleteRequested: notifPanel.deleteSelected()
+      onTextKey: function(text, modifiers) { notifPanel.handleTextKey(text, modifiers) }
 
       NotificationPanel {
         id: notifPanel
         anchors.fill: parent
+        clip: true
         anchors.margins: Style.space(16)
         bar: root.bar
         panelOpened: root.opened

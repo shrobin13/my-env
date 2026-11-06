@@ -9,13 +9,16 @@ import qs.Ui
 import "Model.js" as Model
 
 Item {
-  id: root
+  id: panelRoot
+  implicitWidth: 0
+  clip: true
 
   property var bar: null
   property bool panelOpened: true
   signal closeRequested()
 
   property var rawNotifications: []
+  property bool rawNotificationsLoaded: false
   property var userState: Model.defaultUserState()
   property string activeFilter: "All"
   property string searchQuery: ""
@@ -24,35 +27,62 @@ Item {
   // Snapshot of unread keys at the moment panel was opened
   property var unreadAtOpen: ({})
 
-  // 1-second clock tick for countdowns, snooze expiry & time formatting
+  // Track active text input focus for PanelKeyCatcher
+  readonly property bool isInputActive: searchInput.activeFocus || (Window.activeFocusItem && (Window.activeFocusItem instanceof TextInput || Window.activeFocusItem.hasOwnProperty("cursorPosition")))
+
+  // Update only while a timed focus is active; snooze expiry is reconciled on refresh.
   property int currentEpochSec: Math.floor(Date.now() / 1000)
+  property int filterEpochSec: currentEpochSec
+
+  readonly property int nextSnoozeExpiry: {
+    var next = 0
+    for (var key in panelRoot.userState.snoozed) {
+      var expiry = Number(panelRoot.userState.snoozed[key])
+      if (expiry > panelRoot.filterEpochSec && (!next || expiry < next)) next = expiry
+    }
+    return next
+  }
 
   Timer {
     id: clockTickTimer
     interval: 1000
-    running: root.panelOpened
+    running: panelRoot.panelOpened && panelRoot.dndActive && panelRoot.userState.focusUntil > 0
     repeat: true
     onTriggered: {
-      root.currentEpochSec = Math.floor(Date.now() / 1000)
+      panelRoot.currentEpochSec = Math.floor(Date.now() / 1000)
       // Reconcile focus expiry if past focusUntil
-      if (root.dndActive && root.userState.focusUntil > 0 && root.currentEpochSec >= root.userState.focusUntil) {
-        root.setFocusDuration(-1)
+      if (panelRoot.dndActive && panelRoot.userState.focusUntil > 0 && panelRoot.currentEpochSec >= panelRoot.userState.focusUntil) {
+        panelRoot.setFocusDuration(-1)
       }
+
+    }
+  }
+
+  Timer {
+    id: snoozeExpiryTimer
+    running: panelRoot.panelOpened && panelRoot.nextSnoozeExpiry > 0
+    interval: Math.max(1000, (panelRoot.nextSnoozeExpiry - panelRoot.filterEpochSec) * 1000)
+    repeat: false
+    onTriggered: {
+      panelRoot.filterEpochSec = Math.floor(Date.now() / 1000)
+      restart()
     }
   }
 
   // Pending Deletions & Undo System
   property var pendingDeletes: []
   property var pendingDeletesMap: ({})
+  property var committedDeletes: ({})
   property string undoMessage: ""
   property bool undoVisible: false
+  property string undoAction: ""
 
-  // Non-destructive active notifications (filters out pending deletes without breaking parent binding)
+  // Non-destructive active notifications (filters out pending deletes)
   readonly property var activeNotifications: {
     var out = []
-    for (var i = 0; i < root.rawNotifications.length; i++) {
-      var it = root.rawNotifications[i]
-      if (it && it.key && !root.pendingDeletesMap[it.key]) {
+    for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
+      var it = panelRoot.rawNotifications[i]
+      if (it && it.key && !panelRoot.pendingDeletesMap[it.key] && !panelRoot.committedDeletes[it.key]) {
         out.push(it)
       }
     }
@@ -61,12 +91,12 @@ Item {
 
   // Filtered & grouped items
   readonly property var filteredList: Model.filterNotifications(
-    root.activeNotifications,
-    root.userState,
-    root.activeFilter,
-    root.searchQuery,
-    root.currentEpochSec,
-    root.unreadAtOpen
+    panelRoot.activeNotifications,
+    panelRoot.userState,
+    panelRoot.activeFilter,
+    panelRoot.searchQuery,
+    panelRoot.filterEpochSec,
+    panelRoot.unreadAtOpen
   )
 
   readonly property var displayList: Model.groupNotifications(filteredList, expandedApps)
@@ -74,15 +104,15 @@ Item {
   // Dictionary lookup for full notification objects
   property var notifDataByKey: ({})
 
-  // Synchronize ListModel with displayList for smooth item animations
+  // Synchronize ListModel with displayList efficiently
   onDisplayListChanged: {
     var lookup = {}
     var i
-    for (i = 0; i < root.displayList.length; i++) {
-      var item = root.displayList[i]
+    for (i = 0; i < panelRoot.displayList.length; i++) {
+      var item = panelRoot.displayList[i]
       if (item && item.key) lookup[item.key] = item
     }
-    root.notifDataByKey = lookup
+    panelRoot.notifDataByKey = lookup
 
     // 1. Remove deleted items
     for (var j = notifListModel.count - 1; j >= 0; j--) {
@@ -93,8 +123,8 @@ Item {
     }
 
     // 2. Insert or update items in order
-    for (i = 0; i < root.displayList.length; i++) {
-      var it = root.displayList[i]
+    for (i = 0; i < panelRoot.displayList.length; i++) {
+      var it = panelRoot.displayList[i]
       if (!it || !it.key) continue
 
       var rowData = {
@@ -109,9 +139,17 @@ Item {
       }
 
       if (i < notifListModel.count) {
-        var currentK = notifListModel.get(i).key
-        if (currentK === it.key) {
-          notifListModel.set(i, rowData)
+        var currentItem = notifListModel.get(i)
+        if (currentItem.key === it.key) {
+          // Only update if properties actually changed
+          if (currentItem.isRead !== rowData.isRead ||
+              currentItem.isPinned !== rowData.isPinned ||
+              currentItem.isSnoozed !== rowData.isSnoozed ||
+              currentItem.sectionName !== rowData.sectionName ||
+              currentItem.groupExpanded !== rowData.groupExpanded ||
+              currentItem.groupExtraCount !== rowData.groupExtraCount) {
+            notifListModel.set(i, rowData)
+          }
         } else {
           // Check if item exists further down
           var foundIdx = -1
@@ -137,71 +175,77 @@ Item {
   // Live filter counts
   readonly property int countAll: {
     var c = 0
-    for (var i = 0; i < root.activeNotifications.length; i++) {
-      var it = root.activeNotifications[i]
-      if (!Model.isSnoozed(root.userState, it.key, root.currentEpochSec) && !Model.isMuted(root.userState, it.app)) c++
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      var it = panelRoot.activeNotifications[i]
+      if (!Model.isSnoozed(panelRoot.userState, it.key, panelRoot.filterEpochSec) && !Model.isMuted(panelRoot.userState, it.app)) c++
     }
     return c
   }
 
   readonly property int countUnread: {
     var c = 0
-    for (var i = 0; i < root.activeNotifications.length; i++) {
-      var it = root.activeNotifications[i]
-      if (!Model.isRead(root.userState, it.key) && !Model.isSnoozed(root.userState, it.key, root.currentEpochSec) && !Model.isMuted(root.userState, it.app)) c++
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      var it = panelRoot.activeNotifications[i]
+      var visibleUnread = !Model.isRead(panelRoot.userState, it.key) || Boolean(panelRoot.unreadAtOpen[it.key])
+      if (visibleUnread && !Model.isSnoozed(panelRoot.userState, it.key, panelRoot.filterEpochSec) && !Model.isMuted(panelRoot.userState, it.app)) c++
     }
     return c
   }
 
   readonly property int countUrgent: {
     var c = 0
-    for (var i = 0; i < root.activeNotifications.length; i++) {
-      var it = root.activeNotifications[i]
-      if (it.urgency === 2 && !Model.isSnoozed(root.userState, it.key, root.currentEpochSec) && !Model.isMuted(root.userState, it.app)) c++
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      var it = panelRoot.activeNotifications[i]
+      if (it.urgency === 2 && !Model.isSnoozed(panelRoot.userState, it.key, panelRoot.filterEpochSec) && !Model.isMuted(panelRoot.userState, it.app)) c++
     }
     return c
   }
 
   readonly property int countMessages: {
     var c = 0
-    for (var i = 0; i < root.activeNotifications.length; i++) {
-      var it = root.activeNotifications[i]
-      if (Model.supportsReply(it) && !Model.isSnoozed(root.userState, it.key, root.currentEpochSec) && !Model.isMuted(root.userState, it.app)) c++
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      var it = panelRoot.activeNotifications[i]
+      if (Model.supportsReply(it) && !Model.isSnoozed(panelRoot.userState, it.key, panelRoot.filterEpochSec) && !Model.isMuted(panelRoot.userState, it.app)) c++
     }
     return c
   }
 
   readonly property int countPinned: {
     var c = 0
-    for (var i = 0; i < root.activeNotifications.length; i++) {
-      if (Model.isPinned(root.userState, root.activeNotifications[i].key)) c++
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      if (Model.isPinned(panelRoot.userState, panelRoot.activeNotifications[i].key)) c++
     }
     return c
   }
 
-  readonly property int countSnoozed: Model.countSnoozed(root.activeNotifications, root.userState, root.currentEpochSec)
-  readonly property int countMuted: Object.keys(root.userState.mutedApps || {}).length
+  readonly property int countSnoozed: Model.countSnoozed(panelRoot.activeNotifications, panelRoot.userState, panelRoot.filterEpochSec)
+  readonly property int countMuted: Object.keys(panelRoot.userState.mutedApps || {}).length
 
   // Number of clearable (non-pinned) items currently visible
   readonly property int clearableCount: {
     var count = 0
-    for (var i = 0; i < root.filteredList.length; i++) {
-      if (!Model.isPinned(root.userState, root.filteredList[i].key)) count++
+    for (var i = 0; i < panelRoot.filteredList.length; i++) {
+      if (!Model.isPinned(panelRoot.userState, panelRoot.filteredList[i].key)) count++
     }
     return count
   }
 
   readonly property string clearBtnLabel: {
-    if (root.activeFilter === "All" && root.searchQuery === "") {
-      return "Clear all"
+    if (panelRoot.activeFilter === "All" && panelRoot.searchQuery === "") {
+      return strings.t("clear")
     }
-    return "Clear " + root.clearableCount + " shown"
+    return strings.t("clearCount").arg(panelRoot.clearableCount)
   }
 
   readonly property color foreground: Commons.Color.foreground
   readonly property color dimColor: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.65)
   readonly property color subtleBg: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.055)
   readonly property color subtleBorder: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.12)
+
+  Commons.Translations {
+    id: strings
+    directory: Qt.resolvedUrl("i18n")
+  }
 
   // ---------------------------------------------------------------------------
   // STATE PERSISTENCE & DEBOUNCING
@@ -211,16 +255,17 @@ Item {
 
   FileView {
     id: userStateFile
-    path: root.stateFilePath
+    path: panelRoot.stateFilePath
     watchChanges: true
     printErrors: false
     onFileChanged: reload()
     onLoaded: {
       var txt = text()
-      if (txt && txt.trim() === root.lastSerializedState.trim()) {
+      if (txt && txt.trim() === panelRoot.lastSerializedState.trim()) {
         return // Ignore reload triggered by our own serialization write
       }
-      root.userState = Model.parseUserState(txt)
+      panelRoot.userState = Model.parseUserState(txt)
+      if (panelRoot.rawNotificationsLoaded) panelRoot.pruneUserState()
     }
   }
 
@@ -229,10 +274,9 @@ Item {
     interval: 150
     repeat: false
     onTriggered: {
-      var jsonText = Model.serializeUserState(root.userState)
-      root.lastSerializedState = jsonText
-      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-      Quickshell.execDetached(["python3", script, "save-state", jsonText])
+      var jsonText = Model.serializeUserState(panelRoot.userState)
+      panelRoot.lastSerializedState = jsonText
+      userStateFile.setText(jsonText)
     }
   }
 
@@ -240,36 +284,61 @@ Item {
     saveStateDebounceTimer.restart()
   }
 
+  function pruneUserState() {
+    var present = {}
+    for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
+      if (panelRoot.rawNotifications[i] && panelRoot.rawNotifications[i].key) present[panelRoot.rawNotifications[i].key] = true
+    }
+    var changed = false
+    var fields = ["pinned", "snoozed", "readKeys"]
+    for (var fieldIndex = 0; fieldIndex < fields.length; fieldIndex++) {
+      var field = fields[fieldIndex]
+      var values = panelRoot.userState[field] || {}
+      for (var key in values) {
+        if (!present[key]) {
+          delete values[key]
+          changed = true
+        }
+      }
+      panelRoot.userState[field] = values
+    }
+    if (changed) panelRoot.saveState()
+  }
+
   // ---------------------------------------------------------------------------
   // VIEWPORT READ TRACKING & SNAPSHOT
   // ---------------------------------------------------------------------------
   Timer {
     id: readTimer
-    interval: 1000
-    running: root.panelOpened
+    interval: 800
+    running: false
     repeat: false
-    onTriggered: root.markVisibleAsRead()
+    onTriggered: panelRoot.markVisibleAsRead()
   }
 
   function markVisibleAsRead() {
-    if (!root.panelOpened || notifListModel.count === 0) return
-    if (!root.userState.readKeys) root.userState.readKeys = {}
+    if (!panelRoot.panelOpened || notifListModel.count === 0) return
+    if (!panelRoot.userState.readKeys) panelRoot.userState.readKeys = {}
 
     var topY = notifListView.contentY
     var bottomY = topY + notifListView.height
     var changed = false
 
     var startIdx = notifListView.indexAt(Style.space(20), topY + Style.space(10))
-    var endIdx = notifListView.indexAt(Style.space(20), bottomY - Style.space(10))
-
     if (startIdx === -1) startIdx = 0
-    if (endIdx === -1) endIdx = Math.min(notifListModel.count - 1, startIdx + 8)
 
-    for (var i = startIdx; i <= endIdx; i++) {
+    // Safely iterate through items that are actually visible
+    for (var i = startIdx; i < notifListModel.count; i++) {
+      var itemDelegate = notifListView.itemAtIndex(i)
+      if (itemDelegate) {
+        var itemTop = itemDelegate.y
+        if (itemTop > bottomY) break // Scrolled below viewport
+      }
+
       var it = notifListModel.get(i)
       if (it && it.key) {
-        if (!root.userState.readKeys[it.key]) {
-          root.userState.readKeys[it.key] = true
+        if (!panelRoot.userState.readKeys[it.key]) {
+          panelRoot.userState.readKeys[it.key] = true
           notifListModel.setProperty(i, "isRead", true)
           changed = true
         }
@@ -277,8 +346,8 @@ Item {
     }
 
     if (changed) {
-      root.userStateChanged()
-      root.saveState()
+      panelRoot.userStateChanged()
+      panelRoot.saveState()
     }
   }
 
@@ -286,26 +355,43 @@ Item {
     if (panelOpened) {
       // 1. Take snapshot of currently unread items so Unread chip doesn't vanish while open
       var unreadMap = {}
-      for (var i = 0; i < root.rawNotifications.length; i++) {
-        var k = root.rawNotifications[i].key
-        if (k && !Model.isRead(root.userState, k)) {
+      for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
+        var k = panelRoot.rawNotifications[i].key
+        if (k && !Model.isRead(panelRoot.userState, k)) {
           unreadMap[k] = true
         }
       }
-      root.unreadAtOpen = unreadMap
+      panelRoot.unreadAtOpen = unreadMap
       readTimer.restart()
       notifListView.currentIndex = 0
-      root.forceActiveFocus()
     } else {
       // Commit any pending deletions when panel closes
-      root.commitPendingDeletes()
+      panelRoot.commitPendingDeletes()
       focusMenuOverlay.visible = false
       mutedAppsOverlay.visible = false
     }
   }
 
   onRawNotificationsChanged: {
+    panelRoot.rawNotificationsLoaded = true
+    panelRoot.pruneUserState()
+    var stillPresent = {}
+    for (var r = 0; r < panelRoot.rawNotifications.length; r++) {
+      if (panelRoot.rawNotifications[r] && panelRoot.rawNotifications[r].key) stillPresent[panelRoot.rawNotifications[r].key] = true
+    }
+    var committed = Object.assign({}, panelRoot.committedDeletes)
+    for (var committedKey in committed) {
+      if (!stillPresent[committedKey]) delete committed[committedKey]
+    }
+    panelRoot.committedDeletes = committed
     if (panelOpened) {
+      // Add any newly arrived unread notifications to snapshot so they don't vanish immediately
+      for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
+        var k = panelRoot.rawNotifications[i].key
+        if (k && !Model.isRead(panelRoot.userState, k) && !panelRoot.unreadAtOpen[k]) {
+          panelRoot.unreadAtOpen[k] = true
+        }
+      }
       readTimer.restart()
     }
   }
@@ -316,42 +402,43 @@ Item {
   function dismissItem(key) {
     if (!key) return
     var target = null
-    for (var i = 0; i < root.rawNotifications.length; i++) {
-      if (root.rawNotifications[i].key === key) {
-        target = root.rawNotifications[i]
+    for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
+      if (panelRoot.rawNotifications[i].key === key) {
+        target = panelRoot.rawNotifications[i]
         break
       }
     }
     if (!target) return
 
-    var newDeletes = root.pendingDeletes.slice()
+    var newDeletes = panelRoot.pendingDeletes.slice()
     if (newDeletes.indexOf(key) < 0) {
       newDeletes.push(key)
     }
-    root.pendingDeletes = newDeletes
+    panelRoot.pendingDeletes = newDeletes
 
-    var newMap = Object.assign({}, root.pendingDeletesMap)
+    var newMap = Object.assign({}, panelRoot.pendingDeletesMap)
     newMap[key] = target
-    root.pendingDeletesMap = newMap
+    panelRoot.pendingDeletesMap = newMap
 
-    root.undoMessage = newDeletes.length === 1 ? "1 notification dismissed" : (newDeletes.length + " notifications dismissed")
-    root.undoVisible = true
+    panelRoot.undoMessage = strings.tn("notificationsDismissed", newDeletes.length).arg(newDeletes.length)
+    panelRoot.undoAction = "delete"
+    panelRoot.undoVisible = true
     undoTimer.restart()
   }
 
   function clearVisibleNonPinned() {
     var toClear = []
-    for (var i = 0; i < root.filteredList.length; i++) {
-      var it = root.filteredList[i]
-      if (it && it.key && !Model.isPinned(root.userState, it.key)) {
+    for (var i = 0; i < panelRoot.filteredList.length; i++) {
+      var it = panelRoot.filteredList[i]
+      if (it && it.key && !Model.isPinned(panelRoot.userState, it.key)) {
         toClear.push(it)
       }
     }
 
     if (toClear.length === 0) return
 
-    var newDeletes = root.pendingDeletes.slice()
-    var newMap = Object.assign({}, root.pendingDeletesMap)
+    var newDeletes = panelRoot.pendingDeletes.slice()
+    var newMap = Object.assign({}, panelRoot.pendingDeletesMap)
 
     for (var j = 0; j < toClear.length; j++) {
       var item = toClear[j]
@@ -361,30 +448,47 @@ Item {
       newMap[item.key] = item
     }
 
-    root.pendingDeletes = newDeletes
-    root.pendingDeletesMap = newMap
+    panelRoot.pendingDeletes = newDeletes
+    panelRoot.pendingDeletesMap = newMap
 
-    root.undoMessage = newDeletes.length === 1 ? "1 notification cleared" : (newDeletes.length + " notifications cleared")
-    root.undoVisible = true
+    panelRoot.undoMessage = strings.tn("notificationsCleared", newDeletes.length).arg(newDeletes.length)
+    panelRoot.undoAction = "delete"
+    panelRoot.undoVisible = true
     undoTimer.restart()
   }
 
   function commitPendingDeletes() {
-    if (root.pendingDeletes.length === 0) return
-    var keys = root.pendingDeletes.slice()
-    root.pendingDeletes = []
-    root.pendingDeletesMap = ({})
-    root.undoVisible = false
+    if (panelRoot.pendingDeletes.length === 0) {
+      panelRoot.undoVisible = false
+      panelRoot.undoAction = ""
+      return
+    }
+    var keys = panelRoot.pendingDeletes.slice()
+    var committed = Object.assign({}, panelRoot.committedDeletes)
+    for (var i = 0; i < keys.length; i++) committed[keys[i]] = true
+    panelRoot.committedDeletes = committed
+    panelRoot.pendingDeletes = []
+    panelRoot.pendingDeletesMap = ({})
+    panelRoot.undoVisible = false
     undoTimer.stop()
 
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-    Quickshell.execDetached(["python3", script, "delete-keys"].concat(keys))
+    for (var offset = 0; offset < keys.length; offset += 50) {
+      Quickshell.execDetached(["python3", script, "delete-keys", "--"].concat(keys.slice(offset, offset + 50)))
+    }
   }
 
   function performUndo() {
-    root.pendingDeletes = []
-    root.pendingDeletesMap = ({})
-    root.undoVisible = false
+    if (panelRoot.undoAction.indexOf("mute:") === 0) {
+      panelRoot.unmuteApp(panelRoot.undoAction.slice(5))
+      panelRoot.undoAction = ""
+      if (panelRoot.pendingDeletes.length > 0) undoTimer.restart()
+    } else {
+      panelRoot.pendingDeletes = []
+      panelRoot.pendingDeletesMap = ({})
+      panelRoot.undoAction = ""
+    }
+    panelRoot.undoVisible = false
     undoTimer.stop()
   }
 
@@ -392,81 +496,78 @@ Item {
     id: undoTimer
     interval: 5000
     repeat: false
-    onTriggered: root.commitPendingDeletes()
+    onTriggered: panelRoot.commitPendingDeletes()
   }
 
   function togglePin(key) {
     if (!key) return
-    var p = Object.assign({}, root.userState.pinned)
+    var p = Object.assign({}, panelRoot.userState.pinned)
     if (p[key]) delete p[key]
     else p[key] = true
-    root.userState.pinned = p
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userState.pinned = p
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
   }
 
   function snoozeItem(key, seconds) {
     if (!key) return
-    var s = Object.assign({}, root.userState.snoozed)
+    var s = Object.assign({}, panelRoot.userState.snoozed)
     s[key] = Math.floor(Date.now() / 1000) + seconds
-    root.userState.snoozed = s
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userState.snoozed = s
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
   }
 
   function wakeItem(key) {
     if (!key) return
-    var s = Object.assign({}, root.userState.snoozed)
+    var s = Object.assign({}, panelRoot.userState.snoozed)
     delete s[key]
-    root.userState.snoozed = s
-    // Mark as unread so user reviews it
-    if (root.userState.readKeys) delete root.userState.readKeys[key]
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userState.snoozed = s
+    if (panelRoot.userState.readKeys) delete panelRoot.userState.readKeys[key]
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
   }
 
   function muteApp(app) {
-    if (!app) return
-    var m = Object.assign({}, root.userState.mutedApps)
+    if (!app || app === "System") return
+    var m = Object.assign({}, panelRoot.userState.mutedApps)
     m[app] = true
-    root.userState.mutedApps = m
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userState.mutedApps = m
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
 
-    root.undoMessage = "Muted " + app
-    root.undoVisible = true
+    panelRoot.undoMessage = "Muted " + app
+    panelRoot.undoAction = "mute:" + app
+    panelRoot.undoVisible = true
     undoTimer.restart()
   }
 
   function unmuteApp(app) {
     if (!app) return
-    var m = Object.assign({}, root.userState.mutedApps)
+    var m = Object.assign({}, panelRoot.userState.mutedApps)
     delete m[app]
-    root.userState.mutedApps = m
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userState.mutedApps = m
+    if (Object.keys(m).length === 0) {
+      mutedAppsOverlay.visible = false
+    }
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
   }
 
   function toggleGroup(app) {
     if (!app) return
-    var ex = Object.assign({}, root.expandedApps)
+    var ex = Object.assign({}, panelRoot.expandedApps)
     ex[app] = !ex[app]
-    root.expandedApps = ex
+    panelRoot.expandedApps = ex
   }
 
   function triggerAction(key, actionId) {
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-    Quickshell.execDetached(["python3", script, "run-action", key, actionId])
-  }
-
-  function submitReply(key, text) {
-    var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-    Quickshell.execDetached(["python3", script, "reply", key, text])
-    root.forceActiveFocus()
+    Quickshell.execDetached(["python3", script, "run-action", "--", key, actionId])
   }
 
   // ---------------------------------------------------------------------------
-  // FOCUS (DO NOT DISTURB) & SYSTEMD TIMER MANAGEMENT
+  // FOCUS (DO NOT DISTURB) MANAGEMENT
   // ---------------------------------------------------------------------------
   property bool dndActive: false
   property bool ignoreQuietUpdates: false
@@ -475,63 +576,36 @@ Item {
     id: quietIgnoreTimer
     interval: 500
     repeat: false
-    onTriggered: root.ignoreQuietUpdates = false
-  }
-
-  FileView {
-    id: quietFile
-    path: Quickshell.env("HOME") + "/.local/state/omarchy/notifications/quiet.json"
-    watchChanges: true
-    printErrors: false
-    onFileChanged: reload()
-    onLoaded: root.updateQuiet()
-  }
-
-  function updateQuiet() {
-    if (root.ignoreQuietUpdates) return
-    try {
-      var raw = quietFile.text()
-      if (raw && raw.trim()) {
-        var parsed = JSON.parse(raw)
-        root.dndActive = !!parsed.dnd
-      } else {
-        root.dndActive = false
-      }
-    } catch (e) {
-      root.dndActive = false
-    }
+    onTriggered: panelRoot.ignoreQuietUpdates = false
   }
 
   function toggleFocus() {
-    if (root.dndActive) {
-      root.setFocusDuration(-1)
+    if (panelRoot.dndActive) {
+      panelRoot.setFocusDuration(-1)
     } else {
-      root.setFocusDuration(0)
+      panelRoot.setFocusDuration(0)
     }
   }
 
   function setFocusDuration(seconds) {
     focusMenuOverlay.visible = false
-    root.ignoreQuietUpdates = true
-    quietIgnoreTimer.restart()
 
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
     if (seconds > 0) {
-      root.userState.focusUntil = Math.floor(Date.now() / 1000) + seconds
-      root.dndActive = true
+      panelRoot.userState.focusUntil = Math.floor(Date.now() / 1000) + seconds
+      panelRoot.userState.focusPreset = String(seconds)
     } else if (seconds === 0) {
-      root.userState.focusUntil = 0
-      root.dndActive = true
+      panelRoot.userState.focusUntil = 0
+      panelRoot.userState.focusPreset = "0"
     } else {
-      root.userState.focusUntil = 0
-      root.dndActive = false
+      panelRoot.userState.focusUntil = 0
+      panelRoot.userState.focusPreset = ""
     }
 
-    root.userStateChanged()
-    root.saveState()
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
 
-    // Enforce expiry in backend via systemd transient timer
-    Quickshell.execDetached(["python3", script, "set-focus", String(seconds)])
+    Quickshell.execDetached(["python3", script, "set-focus", "--", String(seconds)])
   }
 
   function formatExpiryClock(epochSec) {
@@ -548,7 +622,7 @@ Item {
 
   function formatRemainingDetailed(epochSec) {
     if (!epochSec || epochSec <= 0) return ""
-    var diff = epochSec - root.currentEpochSec
+    var diff = epochSec - panelRoot.currentEpochSec
     if (diff <= 0) return "expired"
     var mins = Math.ceil(diff / 60)
     if (mins < 60) return mins + "m left"
@@ -558,17 +632,17 @@ Item {
   }
 
   readonly property string focusStatusText: {
-    if (!root.dndActive) return "Focus"
-    if (root.userState.focusUntil > 0) {
-      var remaining = Math.max(0, root.userState.focusUntil - root.currentEpochSec)
-      if (remaining <= 0) return "Focus: Expired"
+    if (!panelRoot.dndActive) return strings.t("focus")
+    if (panelRoot.userState.focusUntil > 0) {
+      var remaining = Math.max(0, panelRoot.userState.focusUntil - panelRoot.currentEpochSec)
+      if (remaining <= 0) return strings.t("focus")
       var mins = Math.ceil(remaining / 60)
-      if (mins < 60) return "Focus: " + mins + "m"
+      if (mins < 60) return mins + "m"
       var hrs = Math.floor(mins / 60)
       var remMins = mins % 60
-      return remMins > 0 ? ("Focus: " + hrs + "h " + remMins + "m") : ("Focus: " + hrs + "h")
+      return remMins > 0 ? (hrs + "h " + remMins + "m") : (hrs + "h")
     }
-    return "Focus: On"
+    return strings.t("focusOn")
   }
 
   // ---------------------------------------------------------------------------
@@ -581,74 +655,51 @@ Item {
 
   function openFocusMenu() {
     mutedAppsOverlay.visible = false
-    var pt = focusBtn.mapToItem(root, 0, focusBtn.height + Style.space(6))
+    var pt = focusBtn.mapToItem(panelRoot, 0, focusBtn.height + Style.space(6))
     var boxW = Style.space(220)
-    root.focusMenuX = Math.max(Style.space(8), Math.min(root.width - boxW - Style.space(8), pt.x + focusBtn.width - boxW))
-    root.focusMenuY = pt.y
+    panelRoot.focusMenuX = Math.max(Style.space(8), Math.min(panelRoot.width - boxW - Style.space(8), pt.x + focusBtn.width - boxW))
+    panelRoot.focusMenuY = pt.y
     focusMenuOverlay.visible = true
   }
 
   function openMutedApps() {
     focusMenuOverlay.visible = false
-    var pt = mutedAppsBtn.mapToItem(root, 0, mutedAppsBtn.height + Style.space(6))
+    var pt = mutedAppsBtn.mapToItem(panelRoot, 0, mutedAppsBtn.height + Style.space(6))
     var boxW = Style.space(240)
-    root.mutedAppsX = Math.max(Style.space(8), Math.min(root.width - boxW - Style.space(8), pt.x + mutedAppsBtn.width - boxW))
-    root.mutedAppsY = pt.y
+    panelRoot.mutedAppsX = Math.max(Style.space(8), Math.min(panelRoot.width - boxW - Style.space(8), pt.x + mutedAppsBtn.width - boxW))
+    panelRoot.mutedAppsY = pt.y
     mutedAppsOverlay.visible = true
   }
 
   // ---------------------------------------------------------------------------
-  // KEYBOARD NAVIGATION & SHORTCUTS
+  // KEYBOARD NAVIGATION (Connected from PanelKeyCatcher)
   // ---------------------------------------------------------------------------
-  focus: true
+  function moveCursor(dx, dy) {
+    if (dy > 0) {
+      notifListView.incrementCurrentIndex()
+    } else if (dy < 0) {
+      notifListView.decrementCurrentIndex()
+    }
+    notifListView.positionViewAtIndex(notifListView.currentIndex, ListView.Contain)
+  }
 
-  Keys.onUpPressed: {
-    notifListView.decrementCurrentIndex()
-    notifListView.positionViewAtIndex(notifListView.currentIndex, ListView.Contain)
-  }
-  Keys.onDownPressed: {
-    notifListView.incrementCurrentIndex()
-    notifListView.positionViewAtIndex(notifListView.currentIndex, ListView.Contain)
-  }
-  Keys.onDeletePressed: {
-    if (notifListView.currentItem && notifListView.currentItem.notificationData) {
-      root.dismissItem(notifListView.currentItem.notificationData.key)
+  function activateSelected() {
+    var cur = notifListView.itemAtIndex(notifListView.currentIndex)
+    if (cur && typeof cur.runPrimaryAction === "function") {
+      cur.runPrimaryAction()
     }
   }
 
-  function handleEnterAction() {
-    if (notifListView.currentItem && typeof notifListView.currentItem.runPrimaryAction === "function") {
-      notifListView.currentItem.runPrimaryAction()
+  function deleteSelected() {
+    var it = notifListModel.get(notifListView.currentIndex)
+    if (it && it.key) {
+      panelRoot.dismissItem(it.key)
     }
   }
 
-  Keys.onReturnPressed: handleEnterAction()
-  Keys.onEnterPressed: handleEnterAction()
-
-  Keys.onPressed: function(event) {
-    if (event.key === Qt.Key_Slash) {
-      // Guard: do not hijack slash if typing inside any TextInput / TextField (e.g. inline reply)
-      var af = Window.activeFocusItem
-      if (af && (af instanceof TextInput || af.hasOwnProperty("cursorPosition"))) {
-        return
-      }
+  function handleTextKey(text, modifiers) {
+    if (text === "/") {
       searchInput.forceActiveFocus()
-      event.accepted = true
-    } else if (event.key === Qt.Key_Escape) {
-      if (focusMenuOverlay.visible) {
-        focusMenuOverlay.visible = false
-        event.accepted = true
-      } else if (mutedAppsOverlay.visible) {
-        mutedAppsOverlay.visible = false
-        event.accepted = true
-      } else if (searchInput.text !== "") {
-        searchInput.text = ""
-        root.forceActiveFocus()
-        event.accepted = true
-      } else {
-        root.closeRequested()
-        event.accepted = true
-      }
     }
   }
 
@@ -657,74 +708,92 @@ Item {
   // ===========================================================================
   ColumnLayout {
     anchors.fill: parent
+    Layout.maximumWidth: panelRoot.width
     spacing: Style.space(12)
 
     // ==================== SECTION 1: HEADER ====================
     RowLayout {
       id: headerRow
       Layout.fillWidth: true
+      Layout.maximumWidth: panelRoot.width
+      spacing: Style.space(6)
 
-      Column {
+      Item {
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        Layout.preferredWidth: 0
+        implicitWidth: 0
+        implicitHeight: titleColumn.implicitHeight
+
+        Column {
+          id: titleColumn
+          width: parent.width
         spacing: Style.space(2)
 
         Text {
           textFormat: Text.PlainText
-          text: "Notifications"
+          text: strings.t("title")
           font.family: Style.font.family
           font.pixelSize: Math.max(16, Style.font.title)
           font.bold: true
-          color: root.foreground
+          color: panelRoot.foreground
         }
 
         Text {
           textFormat: Text.PlainText
-          text: root.countUnread > 0 ? (root.countUnread + " unread") : "All caught up"
+          text: panelRoot.countUnread > 0 ? (panelRoot.countUnread + " " + strings.t("unread")) : strings.t("allCaughtUp")
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
-          color: root.dimColor
+          color: panelRoot.dimColor
+          width: parent.width
+          elide: Text.ElideRight
         }
       }
-
-      Item { Layout.fillWidth: true }
+      }
 
       // Muted Apps Button (Shown if any apps are muted)
       Rectangle {
         id: mutedAppsBtn
-        visible: root.countMuted > 0
-        height: Style.space(32)
-        implicitWidth: mutedRow.implicitWidth + Style.space(16)
+        visible: panelRoot.countMuted > 0
+        Layout.preferredWidth: Style.space(32)
+        Layout.preferredHeight: Style.space(32)
         radius: Style.space(8)
         scale: mutedBtnMouse.pressed ? 0.95 : (mutedBtnMouse.containsMouse ? 1.02 : 1.0)
         Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
 
         color: mutedBtnMouse.pressed
           ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.25)
-          : (mutedBtnMouse.containsMouse ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.14) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
-        border.color: root.subtleBorder
+          : (mutedBtnMouse.containsMouse ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.14) : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.08))
+        border.color: panelRoot.subtleBorder
         border.width: 1
 
-        Row {
-          id: mutedRow
+        Text {
           anchors.centerIn: parent
-          spacing: Style.space(5)
+          textFormat: Text.PlainText
+          text: "\uf1f6"
+          font.family: Style.font.family
+          font.pixelSize: Style.space(12)
+          color: Commons.Color.urgent
+        }
 
+        Rectangle {
+          anchors.right: parent.right
+          anchors.top: parent.top
+          anchors.topMargin: -Style.space(4)
+          anchors.rightMargin: -Style.space(4)
+          width: Math.max(Style.space(14), mutedBadgeText.implicitWidth + Style.space(6))
+          height: width
+          radius: width / 2
+          color: Commons.Color.urgent
           Text {
-            anchors.verticalCenter: parent.verticalCenter
+            id: mutedBadgeText
+            anchors.centerIn: parent
             textFormat: Text.PlainText
-            text: "\uf1f6"
+            text: String(panelRoot.countMuted)
             font.family: Style.font.family
-            font.pixelSize: Style.space(11)
-            color: Commons.Color.urgent
-          }
-
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            textFormat: Text.PlainText
-            text: "Muted (" + root.countMuted + ")"
-            font.family: Style.font.family
-            font.pixelSize: Math.max(11, Style.font.caption)
+            font.pixelSize: Style.space(9)
             font.bold: true
-            color: root.foreground
+            color: Commons.Color.background
           }
         }
 
@@ -733,13 +802,14 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.openMutedApps()
+          onClicked: panelRoot.openMutedApps()
         }
       }
 
       // Focus (DND) Button
       Rectangle {
         id: focusBtn
+        Layout.minimumWidth: implicitWidth
         height: Style.space(32)
         implicitWidth: focusRow.implicitWidth + Style.space(20)
         radius: Style.space(8)
@@ -750,18 +820,18 @@ Item {
         Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
 
         color: (focusMouse.pressed || focusChevronMouse.pressed)
-          ? (root.dndActive ? Qt.darker(Commons.Color.urgent, 1.25) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22))
-          : (root.dndActive
+          ? (panelRoot.dndActive ? Qt.darker(Commons.Color.urgent, 1.25) : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.22))
+          : (panelRoot.dndActive
              ? Commons.Color.urgent
              : ((focusMouse.containsMouse || focusChevronMouse.containsMouse)
-                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
-                : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)))
+                ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.16)
+                : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.08)))
 
-        border.color: root.dndActive
+        border.color: panelRoot.dndActive
           ? Commons.Color.urgent
           : ((focusMouse.containsMouse || focusChevronMouse.containsMouse)
              ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.5)
-             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20))
+             : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.20))
         border.width: 1
 
         Behavior on color { ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
@@ -786,20 +856,20 @@ Item {
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
-                text: root.dndActive ? "\uf1f6" : "\uf0f3"
+                text: panelRoot.dndActive ? "\uf1f6" : "\uf0f3"
                 font.family: Style.font.family
                 font.pixelSize: Style.space(12)
-                color: root.dndActive ? Commons.Color.background : Commons.Color.accent
+                color: panelRoot.dndActive ? Commons.Color.background : Commons.Color.accent
               }
 
               Text {
                 anchors.verticalCenter: parent.verticalCenter
                 textFormat: Text.PlainText
-                text: root.focusStatusText
+                        text: panelRoot.focusStatusText
                 font.family: Style.font.family
                 font.pixelSize: Math.max(12, Style.font.caption)
                 font.bold: true
-                color: root.dndActive ? Commons.Color.background : root.foreground
+                color: panelRoot.dndActive ? Commons.Color.background : panelRoot.foreground
               }
             }
 
@@ -808,7 +878,7 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: root.toggleFocus()
+              onClicked: panelRoot.toggleFocus()
             }
           }
 
@@ -816,7 +886,7 @@ Item {
           Rectangle {
             width: 1
             height: Style.space(14)
-            color: root.dndActive ? Qt.rgba(0, 0, 0, 0.25) : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.22)
+            color: panelRoot.dndActive ? Qt.rgba(0, 0, 0, 0.25) : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.22)
             Layout.alignment: Qt.AlignVCenter
           }
 
@@ -831,7 +901,7 @@ Item {
               text: focusMenuOverlay.visible ? "\uf0d8" : "\uf0d7"
               font.family: Style.font.family
               font.pixelSize: Style.space(10)
-              color: root.dndActive ? Commons.Color.background : (focusChevronMouse.containsMouse ? Commons.Color.accent : root.dimColor)
+              color: panelRoot.dndActive ? Commons.Color.background : (focusChevronMouse.containsMouse ? Commons.Color.accent : panelRoot.dimColor)
             }
 
             MouseArea {
@@ -841,7 +911,7 @@ Item {
               cursorShape: Qt.PointingHandCursor
               onClicked: {
                 if (focusMenuOverlay.visible) focusMenuOverlay.visible = false
-                else root.openFocusMenu()
+                else panelRoot.openFocusMenu()
               }
             }
           }
@@ -851,7 +921,8 @@ Item {
       // Clear All / Clear Shown Button
       Rectangle {
         id: clearBtn
-        visible: root.clearableCount > 0
+        Layout.minimumWidth: implicitWidth
+        visible: panelRoot.clearableCount > 0
         height: Style.space(32)
         implicitWidth: clearRow.implicitWidth + Style.space(16)
         radius: Style.space(8)
@@ -863,10 +934,10 @@ Item {
           ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.35)
           : (clearMouse.containsMouse
              ? Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.22)
-             : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08))
+             : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.08))
         border.color: clearMouse.containsMouse
           ? Commons.Color.urgent
-          : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.20)
+          : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.20)
         border.width: 1
 
         Behavior on color { ColorAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
@@ -883,17 +954,17 @@ Item {
             text: "\uf2ed"
             font.family: Style.font.family
             font.pixelSize: Style.space(12)
-            color: clearMouse.containsMouse ? Commons.Color.urgent : root.dimColor
+            color: clearMouse.containsMouse ? Commons.Color.urgent : panelRoot.dimColor
           }
 
           Text {
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.clearBtnLabel
+            text: panelRoot.clearBtnLabel
             font.family: Style.font.family
             font.pixelSize: Math.max(12, Style.font.caption)
             font.bold: true
-            color: clearMouse.containsMouse ? Commons.Color.urgent : root.foreground
+            color: clearMouse.containsMouse ? Commons.Color.urgent : panelRoot.foreground
           }
         }
 
@@ -902,7 +973,7 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.clearVisibleNonPinned()
+          onClicked: panelRoot.clearVisibleNonPinned()
         }
       }
     }
@@ -912,8 +983,8 @@ Item {
       Layout.fillWidth: true
       height: Style.space(34)
       radius: Style.space(8)
-      color: root.subtleBg
-      border.color: searchInput.activeFocus ? Commons.Color.accent : root.subtleBorder
+      color: panelRoot.subtleBg
+      border.color: searchInput.activeFocus ? Commons.Color.accent : panelRoot.subtleBorder
       border.width: 1
 
       RowLayout {
@@ -927,30 +998,38 @@ Item {
           text: "\uf002"
           font.family: Style.font.family
           font.pixelSize: Style.space(12)
-          color: root.dimColor
+          color: panelRoot.dimColor
         }
 
         TextInput {
           id: searchInput
           Layout.fillWidth: true
-          color: root.foreground
+          color: panelRoot.foreground
           font.family: Style.font.family
           font.pixelSize: Math.max(12, Style.font.body)
           clip: true
-          onTextChanged: root.searchQuery = text
+          onTextChanged: panelRoot.searchQuery = text
+          Keys.onReturnPressed: function(event) {
+            event.accepted = true
+            panelRoot.forceActiveFocus()
+          }
+          Keys.onEnterPressed: function(event) {
+            event.accepted = true
+            panelRoot.forceActiveFocus()
+          }
 
           Text {
             anchors.fill: parent
             visible: !searchInput.text && !searchInput.activeFocus
             textFormat: Text.PlainText
-            text: "Search notifications (/)..."
+            text: strings.t("searchPlaceholder")
             font: searchInput.font
-            color: root.dimColor
+            color: panelRoot.dimColor
           }
 
           Keys.onEscapePressed: function() {
             searchInput.text = ""
-            root.forceActiveFocus()
+            panelRoot.forceActiveFocus()
           }
         }
 
@@ -968,7 +1047,7 @@ Item {
             text: "\uf00d"
             font.family: Style.font.family
             font.pixelSize: Style.space(10)
-            color: root.dimColor
+            color: panelRoot.dimColor
           }
 
           MouseArea {
@@ -978,8 +1057,8 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: {
               searchInput.text = ""
-              root.searchQuery = ""
-              root.forceActiveFocus()
+              panelRoot.searchQuery = ""
+              panelRoot.forceActiveFocus()
             }
           }
         }
@@ -989,6 +1068,8 @@ Item {
     // ==================== SECTION 3: FILTER CHIPS ====================
     Flickable {
       Layout.fillWidth: true
+      Layout.preferredWidth: 0
+      implicitWidth: 0
       height: Style.space(28)
       contentWidth: chipRow.implicitWidth
       contentHeight: height
@@ -1002,22 +1083,22 @@ Item {
 
         Repeater {
           model: [
-            { name: "All", count: root.countAll },
-            { name: "Unread", count: root.countUnread },
-            { name: "Urgent", count: root.countUrgent },
-            { name: "Messages", count: root.countMessages },
-            { name: "Pinned", count: root.countPinned },
-            { name: "Snoozed", count: root.countSnoozed }
+            { name: "All", count: panelRoot.countAll },
+            { name: "Unread", count: panelRoot.countUnread },
+            { name: "Urgent", count: panelRoot.countUrgent },
+            { name: "Messages", count: panelRoot.countMessages },
+            { name: "Pinned", count: panelRoot.countPinned },
+            { name: "Snoozed", count: panelRoot.countSnoozed }
           ]
 
           Rectangle {
             height: Style.space(26)
             implicitWidth: chipInnerRow.implicitWidth + Style.space(16)
             radius: height / 2
-            color: root.activeFilter === modelData.name
+            color: panelRoot.activeFilter === modelData.name
               ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.22)
-              : (chipMouse.containsMouse ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.1) : root.subtleBg)
-            border.color: root.activeFilter === modelData.name ? Commons.Color.accent : root.subtleBorder
+              : (chipMouse.containsMouse ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.1) : panelRoot.subtleBg)
+            border.color: panelRoot.activeFilter === modelData.name ? Commons.Color.accent : panelRoot.subtleBorder
             border.width: 1
 
             Row {
@@ -1032,7 +1113,7 @@ Item {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                color: root.activeFilter === modelData.name ? Commons.Color.accent : root.foreground
+                color: panelRoot.activeFilter === modelData.name ? Commons.Color.accent : panelRoot.foreground
               }
 
               Rectangle {
@@ -1040,7 +1121,7 @@ Item {
                 width: countTxt.implicitWidth + Style.space(6)
                 height: Style.space(15)
                 radius: height / 2
-                color: root.activeFilter === modelData.name ? Commons.Color.accent : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.12)
+                color: panelRoot.activeFilter === modelData.name ? Commons.Color.accent : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.12)
 
                 Text {
                   id: countTxt
@@ -1050,7 +1131,7 @@ Item {
                   font.family: Style.font.family
                   font.pixelSize: Style.space(9)
                   font.bold: true
-                  color: root.activeFilter === modelData.name ? Commons.Color.background : root.foreground
+                  color: panelRoot.activeFilter === modelData.name ? Commons.Color.background : panelRoot.foreground
                 }
               }
             }
@@ -1061,8 +1142,8 @@ Item {
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
               onClicked: {
-                root.activeFilter = modelData.name
-                root.forceActiveFocus()
+                panelRoot.activeFilter = modelData.name
+                panelRoot.forceActiveFocus()
               }
             }
           }
@@ -1074,6 +1155,7 @@ Item {
     Item {
       Layout.fillWidth: true
       Layout.fillHeight: true
+      Layout.maximumWidth: panelRoot.width
 
       // Empty State
       Column {
@@ -1084,20 +1166,20 @@ Item {
         Text {
           anchors.horizontalCenter: parent.horizontalCenter
           textFormat: Text.PlainText
-          text: "No notifications"
+          text: strings.t("noNotifications")
           font.family: Style.font.family
           font.pixelSize: Math.max(14, Style.font.body)
           font.bold: true
-          color: root.foreground
+          color: panelRoot.foreground
         }
 
         Text {
           anchors.horizontalCenter: parent.horizontalCenter
           textFormat: Text.PlainText
-          text: "All caught up for now."
+          text: strings.t("allCaughtUpDesc")
           font.family: Style.font.family
           font.pixelSize: Math.max(12, Style.font.caption)
-          color: root.dimColor
+          color: panelRoot.dimColor
         }
       }
 
@@ -1114,6 +1196,9 @@ Item {
         spacing: Style.space(10)
         boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+        onMovementEnded: readTimer.restart()
+        onContentYChanged: readTimer.restart()
 
         add: Transition {
           NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Style.duration(140); easing.type: Easing.OutCubic }
@@ -1141,39 +1226,34 @@ Item {
             font.family: Style.font.family
             font.pixelSize: Math.max(12, Style.font.caption)
             font.bold: true
-            color: section === "Needs attention" ? Commons.Color.urgent : root.dimColor
+            color: section === "Needs attention" ? Commons.Color.urgent : panelRoot.dimColor
           }
         }
 
         delegate: NotificationCard {
           id: cardDelegate
-          required property string key
-          required property string sectionName
-          required property bool isRead
-          required property bool isPinned
-          required property bool isSnoozed
-          required property bool isGroupHeader
-          required property int groupExtraCount
-          required property bool groupExpanded
-          required property int index
 
           width: notifListView.width
-          notificationData: root.notifDataByKey[key] || ({})
-          isRead: cardDelegate.isRead
-          isPinned: cardDelegate.isPinned
-          isSnoozed: cardDelegate.isSnoozed
-          isGroupHeader: cardDelegate.isGroupHeader
-          groupExtraCount: cardDelegate.groupExtraCount
-          groupExpanded: cardDelegate.groupExpanded
+          notificationData: panelRoot.notifDataByKey[model.key] || ({})
+          isRead: model.isRead
+          isPinned: model.isPinned
+          isSnoozed: model.isSnoozed
+          isGroupHeader: model.isGroupHeader
+          groupExtraCount: model.groupExtraCount
+          groupExpanded: model.groupExpanded
+          nowSec: panelRoot.currentEpochSec
+          onSelectRequested: {
+            notifListView.currentIndex = index
+            panelRoot.forceActiveFocus()
+          }
 
-          onDismissed: function(k) { root.dismissItem(k) }
-          onActionTriggered: function(k, actId) { root.triggerAction(k, actId) }
-          onReplySubmitted: function(k, text) { root.submitReply(k, text) }
-          onSnoozeRequested: function(k, sec) { root.snoozeItem(k, sec) }
-          onWakeRequested: function(k) { root.wakeItem(k) }
-          onPinToggled: function(k) { root.togglePin(k) }
-          onMuteAppRequested: function(app) { root.muteApp(app) }
-          onGroupToggleRequested: function(app) { root.toggleGroup(app) }
+          onDismissed: function(k) { panelRoot.dismissItem(k) }
+          onActionTriggered: function(k, actId) { panelRoot.triggerAction(k, actId) }
+          onSnoozeRequested: function(k, sec) { panelRoot.snoozeItem(k, sec) }
+          onWakeRequested: function(k) { panelRoot.wakeItem(k) }
+          onPinToggled: function(k) { panelRoot.togglePin(k) }
+          onMuteAppRequested: function(app) { panelRoot.muteApp(app) }
+          onGroupToggleRequested: function(app) { panelRoot.toggleGroup(app) }
         }
       }
     }
@@ -1183,7 +1263,8 @@ Item {
       id: undoToast
       Layout.fillWidth: true
       height: Style.space(38)
-      visible: root.undoVisible
+      opacity: panelRoot.undoVisible ? 1 : 0
+      visible: opacity > 0
       radius: Style.space(8)
       color: Commons.Color.popups.background
       border.color: Commons.Color.accent
@@ -1200,11 +1281,11 @@ Item {
 
         Text {
           textFormat: Text.PlainText
-          text: root.undoMessage
+          text: panelRoot.undoMessage
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           font.bold: true
-          color: root.foreground
+          color: panelRoot.foreground
         }
 
         Item { Layout.fillWidth: true }
@@ -1219,7 +1300,7 @@ Item {
             id: undoLabel
             anchors.centerIn: parent
             textFormat: Text.PlainText
-            text: "Undo"
+            text: strings.t("undo")
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: true
@@ -1231,7 +1312,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.performUndo()
+            onClicked: panelRoot.performUndo()
           }
         }
       }
@@ -1255,8 +1336,8 @@ Item {
 
     Rectangle {
       id: focusMenuBox
-      x: root.focusMenuX
-      y: root.focusMenuY
+      x: panelRoot.focusMenuX
+      y: panelRoot.focusMenuY
       width: Style.space(220)
       height: focusCol.implicitHeight + Style.space(16)
       radius: Math.max(8, Style.cornerRadius)
@@ -1272,7 +1353,7 @@ Item {
 
         // Current Active Focus Status Card
         Rectangle {
-          visible: root.dndActive
+          visible: panelRoot.dndActive
           width: parent.width
           height: Style.space(42)
           radius: Style.space(6)
@@ -1300,17 +1381,17 @@ Item {
 
               Text {
                 textFormat: Text.PlainText
-                text: root.userState.focusUntil > 0 ? "Focus Mode Active" : "Focus On Indefinitely"
+                text: panelRoot.userState.focusUntil > 0 ? strings.t("focusActive") : strings.t("focusIndefinite")
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: true
-                color: root.foreground
+                color: panelRoot.foreground
               }
 
               Text {
                 textFormat: Text.PlainText
-                text: root.userState.focusUntil > 0
-                  ? (root.formatRemainingDetailed(root.userState.focusUntil) + " • until " + root.formatExpiryClock(root.userState.focusUntil))
+                text: panelRoot.userState.focusUntil > 0
+                  ? (panelRoot.formatRemainingDetailed(panelRoot.userState.focusUntil) + " • until " + panelRoot.formatExpiryClock(panelRoot.userState.focusUntil))
                   : "Notifications muted until turned off"
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption - 2
@@ -1324,10 +1405,10 @@ Item {
         // Duration Options List
         Repeater {
           model: [
-            { label: "For 30 minutes", sec: 1800 },
-            { label: "For 1 hour", sec: 3600 },
-            { label: "Until tomorrow", sec: 86400 },
-            { label: "Until turned off", sec: 0 }
+            { label: strings.t("for30Mins"), sec: 1800 },
+            { label: strings.t("for1Hour"), sec: 3600 },
+            { label: strings.t("untilTomorrow"), sec: 86400 },
+            { label: strings.t("untilTurnedOff"), sec: 0 }
           ]
 
           Rectangle {
@@ -1338,13 +1419,8 @@ Item {
             Behavior on scale { NumberAnimation { duration: Style.duration(60) } }
 
             readonly property bool isCurrentChoice: {
-              if (!root.dndActive) return false
-              if (modelData.sec === 0) return root.userState.focusUntil === 0
-              if (root.userState.focusUntil > 0) {
-                var diff = root.userState.focusUntil - root.currentEpochSec
-                return Math.abs(diff - modelData.sec) <= 300
-              }
-              return false
+              if (!panelRoot.dndActive) return false
+              return panelRoot.userState.focusPreset === String(modelData.sec)
             }
 
             color: fOptMouse.pressed
@@ -1366,7 +1442,7 @@ Item {
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
                 font.bold: isCurrentChoice
-                color: isCurrentChoice ? Commons.Color.accent : (fOptMouse.containsMouse ? Commons.Color.accent : root.foreground)
+                color: isCurrentChoice ? Commons.Color.accent : (fOptMouse.containsMouse ? Commons.Color.accent : panelRoot.foreground)
               }
 
               Text {
@@ -1384,22 +1460,22 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: root.setFocusDuration(modelData.sec)
+              onClicked: panelRoot.setFocusDuration(modelData.sec)
             }
           }
         }
 
         // Divider
         Rectangle {
-          visible: root.dndActive
+          visible: panelRoot.dndActive
           width: parent.width
           height: 1
-          color: root.subtleBorder
+          color: panelRoot.subtleBorder
         }
 
         // Turn Off Focus Button
         Rectangle {
-          visible: root.dndActive
+          visible: panelRoot.dndActive
           width: parent.width
           height: Style.space(28)
           radius: Style.space(5)
@@ -1426,7 +1502,7 @@ Item {
             Text {
               Layout.fillWidth: true
               textFormat: Text.PlainText
-              text: "Turn off Focus"
+              text: strings.t("turnOffFocus")
               font.family: Style.font.family
               font.pixelSize: Style.font.caption
               font.bold: true
@@ -1439,7 +1515,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.setFocusDuration(-1)
+            onClicked: panelRoot.setFocusDuration(-1)
           }
         }
       }
@@ -1463,8 +1539,8 @@ Item {
 
     Rectangle {
       id: mutedAppsBox
-      x: root.mutedAppsX
-      y: root.mutedAppsY
+      x: panelRoot.mutedAppsX
+      y: panelRoot.mutedAppsY
       width: Style.space(240)
       height: mutedCol.implicitHeight + Style.space(16)
       radius: Math.max(8, Style.cornerRadius)
@@ -1480,21 +1556,21 @@ Item {
 
         Text {
           textFormat: Text.PlainText
-          text: "Muted Applications"
+          text: strings.t("mutedApps")
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           font.bold: true
-          color: root.foreground
+          color: panelRoot.foreground
         }
 
         Repeater {
-          model: Object.keys(root.userState.mutedApps || {})
+          model: Object.keys(panelRoot.userState.mutedApps || {})
 
           Rectangle {
             width: parent.width
             height: Style.space(28)
             radius: Style.space(4)
-            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.06)
+            color: Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.06)
 
             RowLayout {
               anchors.fill: parent
@@ -1507,7 +1583,7 @@ Item {
                 text: String(modelData)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.caption
-                color: root.foreground
+                color: panelRoot.foreground
                 elide: Text.ElideRight
               }
 
@@ -1521,7 +1597,7 @@ Item {
                   id: unmuteLabel
                   anchors.centerIn: parent
                   textFormat: Text.PlainText
-                  text: "Unmute"
+                  text: strings.t("unmute")
                   font.family: Style.font.family
                   font.pixelSize: Style.font.caption - 1
                   font.bold: true
@@ -1534,10 +1610,8 @@ Item {
                   hoverEnabled: true
                   cursorShape: Qt.PointingHandCursor
                   onClicked: {
-                    root.unmuteApp(String(modelData))
-                    if (Object.keys(root.userState.mutedApps || {}).length === 0) {
-                      mutedAppsOverlay.visible = false
-                    }
+                    var appName = String(modelData)
+                    panelRoot.unmuteApp(appName)
                   }
                 }
               }

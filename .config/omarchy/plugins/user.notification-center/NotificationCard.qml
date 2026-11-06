@@ -8,7 +8,7 @@ import qs.Ui
 import "Model.js" as Model
 
 Item {
-  id: root
+  id: cardRoot
 
   property var notificationData: ({})
   property bool isRead: false
@@ -17,10 +17,11 @@ Item {
   property bool isGroupHeader: false
   property int groupExtraCount: 0
   property bool groupExpanded: false
+  property int nowSec: 0
 
   signal dismissed(string key)
+  signal selectRequested()
   signal actionTriggered(string key, string actionId)
-  signal replySubmitted(string key, string replyText)
   signal snoozeRequested(string key, int durationSec)
   signal wakeRequested(string key)
   signal pinToggled(string key)
@@ -35,7 +36,6 @@ Item {
 
   readonly property var cardActions: Model.getCardActions(notificationData)
   readonly property bool hasProgress: !!(notificationData && typeof notificationData.progress === "number" && notificationData.progress >= 0 && notificationData.progress <= 100)
-  readonly property bool canReply: Model.supportsReply(notificationData)
 
   readonly property string resolvedIcon: {
     if (!notificationData) return ""
@@ -46,17 +46,52 @@ Item {
 
   readonly property color urgencyStripeColor: {
     if (notificationData && notificationData.urgency === 2) return Commons.Color.urgent
-    if (!root.isRead) return Commons.Color.accent
+    if (!cardRoot.isRead) return Commons.Color.accent
     return Qt.rgba(foreground.r, foreground.g, foreground.b, 0.2)
   }
 
   // Delegate z-stacking: popups must appear above adjacent cards
   z: (snoozePopup.visible || morePopup.visible) ? 100 : (cardHover.hovered ? 10 : 0)
 
-  // Primary action execution helper for Keyboard Enter
+  // Reset animations when delegate is reused or notification data changes
+  onNotificationDataChanged: {
+    cardRect.x = 0
+    cardRoot.isDismissing = false
+    snoozePopup.visible = false
+    morePopup.visible = false
+  }
+
+  function closePopups() {
+    snoozePopup.visible = false
+    morePopup.visible = false
+  }
+
+  function openSnooze() {
+    morePopup.visible = false
+    var p = snoozeBtn.mapToItem(cardRect, 0, 0)
+    snoozePopup.x = snoozeBtn.width - snoozePopup.width
+    snoozePopup.y = snoozeBtn.height + Style.space(4)
+    if (p.y + snoozeBtn.height + Style.space(4) + snoozePopup.height > cardRect.height + Style.space(40)) {
+      snoozePopup.y = -snoozePopup.height - Style.space(4)
+    }
+    snoozePopup.visible = !snoozePopup.visible
+  }
+
+  function openMore() {
+    snoozePopup.visible = false
+    var p = moreBtn.mapToItem(cardRect, 0, 0)
+    morePopup.x = 0
+    morePopup.y = moreBtn.height + Style.space(4)
+    if (p.y + moreBtn.height + Style.space(4) + morePopup.height > cardRect.height + Style.space(40)) {
+      morePopup.y = -morePopup.height - Style.space(4)
+    }
+    morePopup.visible = !morePopup.visible
+  }
+
+  // Primary action execution helper
   function runPrimaryAction() {
-    if (root.isSnoozed) {
-      root.wakeRequested(root.notificationData ? root.notificationData.key : "")
+    if (cardRoot.isSnoozed) {
+      cardRoot.wakeRequested(cardRoot.notificationData ? cardRoot.notificationData.key : "")
       return true
     }
 
@@ -67,15 +102,18 @@ Item {
         return true
       } else if (act.kind === "url") {
         return executeUrlOpen(String(act.value))
+      } else if (act.kind === "app") {
+        cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", "default_open_app")
+        return true
       } else {
-        root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(act.id))
+        cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", String(act.id))
         return true
       }
     }
 
-    // Default action fallback
-    if (root.notificationData && (root.notificationData.execArgv || (root.notificationData.actions && root.notificationData.actions.length > 0))) {
-      root.actionTriggered(root.notificationData.key, "default")
+    // Default action fallback (execArgv or app focus)
+    if (cardRoot.notificationData && (cardRoot.notificationData.execArgv || cardRoot.notificationData.app)) {
+      cardRoot.actionTriggered(cardRoot.notificationData.key, "default")
       return true
     }
     return false
@@ -83,17 +121,15 @@ Item {
 
   function executeCodeCopy(codeVal) {
     if (!codeVal) return
-    Quickshell.execDetached(["wl-copy", "--sensitive", codeVal])
-    // Auto-clear clipboard after 30s only if it still matches the code
-    var clearScript = 'sleep 30 && [ "$(wl-paste 2>/dev/null)" = "' + codeVal.replace(/"/g, '\\"') + '" ] && wl-copy --clear'
-    Quickshell.execDetached(["sh", "-c", clearScript])
+    Quickshell.execDetached(["wl-copy", "--sensitive", "--", codeVal])
+    // Auto-clear clipboard safely after 30s only if it still matches the code
+    Quickshell.execDetached(["sh", "-c", 'sleep 30 && [ "$(wl-paste 2>/dev/null)" = "$1" ] && wl-copy --clear', "_", codeVal])
   }
 
   function executeUrlOpen(urlVal) {
     var safeUrl = Model.sanitizeUrl(urlVal)
     if (safeUrl) {
       Quickshell.execDetached(["omarchy-launch-browser", safeUrl])
-      root.actionTriggered(root.notificationData ? root.notificationData.key : "", "open_url")
       return true
     }
     return false
@@ -105,7 +141,8 @@ Item {
   function triggerDismiss(direction) {
     if (isDismissing) return
     isDismissing = true
-    var targetOffset = (direction === undefined ? 1 : direction) * (root.width * 1.25)
+    closePopups()
+    var targetOffset = (direction === undefined ? 1 : direction) * (cardRoot.width * 1.25)
     slideOutAnim.to = targetOffset
     slideOutAnim.start()
   }
@@ -117,7 +154,7 @@ Item {
     duration: Style.duration(160)
     easing.type: Easing.OutCubic
     onFinished: {
-      root.dismissed(root.notificationData ? root.notificationData.key : "")
+      cardRoot.dismissed(cardRoot.notificationData ? cardRoot.notificationData.key : "")
     }
   }
 
@@ -133,6 +170,44 @@ Item {
   width: parent ? parent.width : Style.space(380)
   implicitHeight: cardRect.implicitHeight
 
+  // Swipe Action Background (Revealed under card when dragged)
+  Rectangle {
+    anchors.fill: cardRect
+    radius: cardRect.radius
+    color: Qt.rgba(Commons.Color.urgent.r, Commons.Color.urgent.g, Commons.Color.urgent.b, 0.25)
+    border.color: Commons.Color.urgent
+    border.width: 1
+    visible: Math.abs(cardRect.x) > Style.space(10)
+
+    Row {
+      anchors.verticalCenter: parent.verticalCenter
+      anchors.left: cardRect.x > 0 ? parent.left : undefined
+      anchors.right: cardRect.x < 0 ? parent.right : undefined
+      anchors.leftMargin: Style.space(16)
+      anchors.rightMargin: Style.space(16)
+      spacing: Style.space(6)
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: "\uf2ed"
+        font.family: Style.font.family
+        font.pixelSize: Style.space(14)
+        color: Commons.Color.urgent
+      }
+
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        textFormat: Text.PlainText
+        text: "Dismiss"
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+        font.bold: true
+        color: Commons.Color.urgent
+      }
+    }
+  }
+
   // Card Outer Container
   Rectangle {
     id: cardRect
@@ -140,16 +215,16 @@ Item {
     width: parent.width
     implicitHeight: contentCol.implicitHeight + Style.space(24)
     radius: Math.max(10, Style.cornerRadius)
-    opacity: 1.0 - Math.min(0.65, Math.abs(x) / (root.width * 0.9))
+    opacity: 1.0 - Math.min(0.65, Math.abs(x) / (cardRoot.width * 0.9))
 
     // Card background & keyboard selection highlight
-    color: cardHover.hovered ? root.hoverBg : root.cardBg
-    border.color: ListView.isCurrentItem
+    color: cardHover.hovered ? cardRoot.hoverBg : cardRoot.cardBg
+    border.color: cardRoot.ListView.isCurrentItem
       ? Commons.Color.accent
       : (cardHover.hovered
          ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.45)
-         : (root.isPinned ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35) : root.cardBorder))
-    border.width: ListView.isCurrentItem ? 2 : 1
+         : (cardRoot.isPinned ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35) : cardRoot.cardBorder))
+    border.width: cardRoot.ListView.isCurrentItem ? 2 : 1
     clip: false
 
     Behavior on color {
@@ -159,15 +234,9 @@ Item {
       ColorAnimation { duration: Style.duration(120); easing.type: Easing.OutCubic }
     }
 
-    // HoverHandler: handles hover state without child MouseAreas breaking it
     HoverHandler {
       id: cardHover
       cursorShape: Qt.ArrowCursor
-      onHoveredChanged: {
-        if (!hovered && !snoozePopup.visible && !morePopup.visible) {
-          // Keep popups closed when mouse leaves
-        }
-      }
     }
 
     // DragHandler: horizontal swipe-to-dismiss gesture (xAxis only, vertical flick scrolls ListView freely)
@@ -180,26 +249,30 @@ Item {
       onActiveChanged: {
         if (!active) {
           var dist = Math.abs(cardRect.x)
-          var vel = Math.abs(dragHandler.velocity.x)
+          var vel = Math.abs(dragHandler.lastVelocityX)
           if (dist > Style.space(90) || vel > 600) {
-            root.triggerDismiss(cardRect.x >= 0 ? 1 : -1)
+            cardRoot.triggerDismiss(cardRect.x >= 0 ? 1 : -1)
           } else {
             returnAnim.start()
           }
         }
       }
+      onCentroidChanged: {
+        if (active) lastVelocityX = centroid.velocity.x
+      }
+      property real lastVelocityX: 0
     }
 
-    // Left urgency stripe (thicker when unread, inset by cardRect.radius so it stays inside rounded corners)
+    // Left urgency stripe (thicker when unread)
     Rectangle {
       id: urgencyStripe
-      width: root.isRead ? Style.space(3.5) : Style.space(5.5)
+      width: cardRoot.isRead ? Style.space(3.5) : Style.space(5.5)
       anchors.left: parent.left
       anchors.top: parent.top
       anchors.bottom: parent.bottom
       anchors.topMargin: cardRect.radius
       anchors.bottomMargin: cardRect.radius
-      color: root.urgencyStripeColor
+      color: cardRoot.urgencyStripeColor
       radius: width / 2
 
       Behavior on width {
@@ -207,16 +280,14 @@ Item {
       }
     }
 
-    // Click handler on card body to select item in ListView
+    // Click handler on card body to select item and activate on click
     MouseArea {
       anchors.fill: parent
       z: -1
       acceptedButtons: Qt.LeftButton
+      cursorShape: Qt.PointingHandCursor
       onClicked: {
-        if (ListView.view) {
-          ListView.view.currentIndex = root.ListView.view ? root.ListView.view.model.indexOf ? root.ListView.view.model.indexOf(root.notificationData) : index : index
-        }
-        root.forceActiveFocus()
+        cardRoot.selectRequested()
       }
     }
 
@@ -248,8 +319,8 @@ Item {
             id: appImg
             anchors.fill: parent
             anchors.margins: Style.space(2)
-            source: root.resolvedIcon
-            visible: status === Image.Ready && root.resolvedIcon !== ""
+            source: cardRoot.resolvedIcon
+            visible: status === Image.Ready && cardRoot.resolvedIcon !== ""
             fillMode: Image.PreserveAspectFit
             asynchronous: true
           }
@@ -258,28 +329,28 @@ Item {
             anchors.centerIn: parent
             visible: !appImg.visible
             textFormat: Text.PlainText
-            text: Model.iconGlyphFor(root.notificationData)
+            text: Model.iconGlyphFor(cardRoot.notificationData)
             font.family: Style.font.family
             font.pixelSize: Style.space(13)
-            color: (root.notificationData && root.notificationData.urgency === 2) ? Commons.Color.urgent : Commons.Color.accent
+            color: (cardRoot.notificationData && cardRoot.notificationData.urgency === 2) ? Commons.Color.urgent : Commons.Color.accent
           }
         }
 
         // App Name
         Text {
           textFormat: Text.PlainText
-          text: root.notificationData ? (root.notificationData.app || "") : ""
+          text: cardRoot.notificationData ? (cardRoot.notificationData.app || "") : ""
           font.family: Style.font.family
           font.pixelSize: Math.max(12, Style.font.body)
           font.bold: true
-          color: root.foreground
+          color: cardRoot.foreground
           elide: Text.ElideRight
           Layout.maximumWidth: Style.space(130)
         }
 
         // Unread 6px Accent Dot
         Rectangle {
-          visible: !root.isRead
+          visible: !cardRoot.isRead
           width: Style.space(6)
           height: Style.space(6)
           radius: width / 2
@@ -293,21 +364,21 @@ Item {
           text: "•"
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
-          color: root.dimColor
+          color: cardRoot.dimColor
         }
 
         // Relative Timestamp
         Text {
           textFormat: Text.PlainText
-          text: root.notificationData ? Model.formatRelativeTime(root.notificationData.ts) : ""
+          text: cardRoot.notificationData ? Model.formatRelativeTime(cardRoot.notificationData.ts, cardRoot.nowSec) : ""
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
-          color: root.dimColor
+          color: cardRoot.dimColor
         }
 
-        // Visual Pin Indicator (Always visible when pinned so user knows without hovering)
+        // Visual Pin Indicator
         Text {
-          visible: root.isPinned
+          visible: cardRoot.isPinned
           textFormat: Text.PlainText
           text: "\uf08d"
           font.family: Style.font.family
@@ -333,6 +404,7 @@ Item {
           // 1. Snooze Button
           Rectangle {
             id: snoozeBtn
+            z: 1000
             width: Style.space(22)
             height: Style.space(22)
             radius: width / 2
@@ -348,7 +420,7 @@ Item {
               text: "\uf017"
               font.family: Style.font.family
               font.pixelSize: Style.space(12)
-              color: snoozeMouse.containsMouse ? Commons.Color.accent : root.dimColor
+              color: snoozeMouse.containsMouse ? Commons.Color.accent : cardRoot.dimColor
             }
 
             MouseArea {
@@ -356,34 +428,20 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: {
-                morePopup.visible = false
-                snoozePopup.visible = !snoozePopup.visible
-              }
+              onClicked: cardRoot.openSnooze()
             }
 
             // Snooze Duration Popup
             Rectangle {
               id: snoozePopup
               visible: false
-              z: 200
+              z: 1000
               width: Style.space(110)
               height: snoozeCol.implicitHeight + Style.space(12)
-              // Flip upward if near bottom of viewport
-              anchors.top: flipSnoozeUp ? undefined : parent.bottom
-              anchors.bottom: flipSnoozeUp ? parent.top : undefined
-              anchors.topMargin: flipSnoozeUp ? 0 : Style.space(4)
-              anchors.bottomMargin: flipSnoozeUp ? Style.space(4) : 0
-              anchors.right: parent.right
               radius: Math.max(8, Style.cornerRadius)
               color: Commons.Color.popups.background
               border.color: Commons.Color.popups.border
               border.width: 1
-
-              readonly property bool flipSnoozeUp: {
-                var pt = snoozeBtn.mapToItem(null, 0, 0)
-                return pt.y > 440
-              }
 
               Column {
                 id: snoozeCol
@@ -410,7 +468,7 @@ Item {
                       font.family: Style.font.family
                       font.pixelSize: Style.font.caption
                       font.bold: true
-                      color: itemMouse.containsMouse ? Commons.Color.accent : root.foreground
+                      color: itemMouse.containsMouse ? Commons.Color.accent : cardRoot.foreground
                     }
 
                     MouseArea {
@@ -420,7 +478,7 @@ Item {
                       cursorShape: Qt.PointingHandCursor
                       onClicked: {
                         snoozePopup.visible = false
-                        root.snoozeRequested(root.notificationData ? root.notificationData.key : "", modelData.sec)
+                        cardRoot.snoozeRequested(cardRoot.notificationData ? cardRoot.notificationData.key : "", modelData.sec)
                       }
                     }
                   }
@@ -438,7 +496,7 @@ Item {
             Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
             color: pinMouse.pressed
               ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.35)
-              : (root.isPinned
+              : (cardRoot.isPinned
                  ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.2)
                  : (pinMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.15) : "transparent"))
 
@@ -448,7 +506,7 @@ Item {
               text: "\uf08d"
               font.family: Style.font.family
               font.pixelSize: Style.space(12)
-              color: root.isPinned ? Commons.Color.accent : (pinMouse.containsMouse ? root.foreground : root.dimColor)
+              color: cardRoot.isPinned ? Commons.Color.accent : (pinMouse.containsMouse ? cardRoot.foreground : cardRoot.dimColor)
             }
 
             MouseArea {
@@ -456,7 +514,7 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: root.pinToggled(root.notificationData ? root.notificationData.key : "")
+              onClicked: cardRoot.pinToggled(cardRoot.notificationData ? cardRoot.notificationData.key : "")
             }
           }
 
@@ -477,7 +535,7 @@ Item {
               text: "\uf1f6"
               font.family: Style.font.family
               font.pixelSize: Style.space(12)
-              color: muteMouse.containsMouse ? Commons.Color.urgent : root.dimColor
+              color: muteMouse.containsMouse ? Commons.Color.urgent : cardRoot.dimColor
             }
 
             MouseArea {
@@ -485,12 +543,12 @@ Item {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
-              onClicked: root.muteAppRequested(root.notificationData ? root.notificationData.app : "")
+              onClicked: cardRoot.muteAppRequested(cardRoot.notificationData ? cardRoot.notificationData.app : "")
             }
           }
         }
 
-        // Close (X) Button (Unmoved at far top-right)
+        // Close (X) Button
         Rectangle {
           id: closeBtn
           width: Style.space(22)
@@ -512,7 +570,7 @@ Item {
             text: "\uf00d"
             font.family: Style.font.family
             font.pixelSize: Style.space(12)
-            color: closeMouse.containsMouse ? Commons.Color.urgent : root.dimColor
+            color: closeMouse.containsMouse ? Commons.Color.urgent : cardRoot.dimColor
           }
 
           MouseArea {
@@ -520,20 +578,20 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.triggerDismiss()
+            onClicked: cardRoot.triggerDismiss()
           }
         }
       }
 
-      // ==================== HEADLINE & BODY ====================
+      // ==================== HEADLINE & BODY (SAFE PLAIN TEXT) ====================
       Text {
         width: parent.width
-        textFormat: Text.StyledText
-        text: root.notificationData ? (root.notificationData.summary || "") : ""
+        textFormat: Text.PlainText
+        text: cardRoot.notificationData ? (cardRoot.notificationData.summary || "") : ""
         font.family: Style.font.family
         font.pixelSize: Math.max(13, Style.font.body)
         font.bold: true
-        color: root.foreground
+        color: cardRoot.foreground
         wrapMode: Text.Wrap
         maximumLineCount: 2
         elide: Text.ElideRight
@@ -541,12 +599,12 @@ Item {
 
       Text {
         width: parent.width
-        visible: root.notificationData ? (root.notificationData.body !== "") : false
-        textFormat: Text.StyledText
-        text: root.notificationData ? (root.notificationData.body || "") : ""
+        visible: !!(cardRoot.notificationData && cardRoot.notificationData.body)
+        textFormat: Text.PlainText
+        text: cardRoot.notificationData ? (cardRoot.notificationData.body || "") : ""
         font.family: Style.font.family
         font.pixelSize: Math.max(12, Style.font.caption + 1)
-        color: root.dimColor
+        color: cardRoot.dimColor
         wrapMode: Text.Wrap
         maximumLineCount: 4
         elide: Text.ElideRight
@@ -556,7 +614,7 @@ Item {
       // ==================== PROGRESS BAR ====================
       Column {
         width: parent.width
-        visible: root.hasProgress
+        visible: cardRoot.hasProgress
         spacing: Style.space(4)
 
         Rectangle {
@@ -567,7 +625,7 @@ Item {
           clip: true
 
           Rectangle {
-            width: parent.width * Math.min(1.0, Math.max(0.0, (root.notificationData && typeof root.notificationData.progress === "number" ? root.notificationData.progress : 0) / 100))
+            width: parent.width * Math.min(1.0, Math.max(0.0, (cardRoot.notificationData && typeof cardRoot.notificationData.progress === "number" ? cardRoot.notificationData.progress : 0) / 100))
             height: parent.height
             radius: 2
             color: Commons.Color.accent
@@ -582,7 +640,7 @@ Item {
           width: parent.width
           Text {
             textFormat: Text.PlainText
-            text: (root.notificationData && typeof root.notificationData.progress === "number" ? Math.round(root.notificationData.progress) : 0) + "%"
+            text: (cardRoot.notificationData && typeof cardRoot.notificationData.progress === "number" ? Math.round(cardRoot.notificationData.progress) : 0) + "%"
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: true
@@ -591,10 +649,10 @@ Item {
           Item { Layout.fillWidth: true }
           Text {
             textFormat: Text.PlainText
-            text: (root.notificationData && root.notificationData.eta) || ""
+            text: (cardRoot.notificationData && cardRoot.notificationData.eta) || ""
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
-            color: root.dimColor
+            color: cardRoot.dimColor
           }
         }
       }
@@ -602,12 +660,12 @@ Item {
       // ==================== ACTIONS ROW ====================
       RowLayout {
         width: parent.width
-        visible: root.isSnoozed || !!(root.cardActions && root.cardActions.total > 0)
+        visible: cardRoot.isSnoozed || !!(cardRoot.cardActions && cardRoot.cardActions.total > 0)
         spacing: Style.space(8)
 
         // Wake Now Button (Visible when snoozed)
         Rectangle {
-          visible: root.isSnoozed
+          visible: cardRoot.isSnoozed
           height: Style.space(26)
           implicitWidth: wakeLabel.implicitWidth + Style.space(20)
           radius: Style.space(6)
@@ -636,13 +694,13 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: root.wakeRequested(root.notificationData ? root.notificationData.key : "")
+            onClicked: cardRoot.wakeRequested(cardRoot.notificationData ? cardRoot.notificationData.key : "")
           }
         }
 
         // Direct Action Buttons (up to 2)
         Repeater {
-          model: (!root.isSnoozed && root.cardActions && root.cardActions.direct) || []
+          model: (!cardRoot.isSnoozed && cardRoot.cardActions && cardRoot.cardActions.direct) || []
 
           Rectangle {
             id: actBtn
@@ -689,13 +747,15 @@ Item {
               cursorShape: Qt.PointingHandCursor
               onClicked: {
                 if (modelData.kind === "code") {
-                  root.executeCodeCopy(String(modelData.value))
+                  cardRoot.executeCodeCopy(String(modelData.value))
                   actBtn.copied = true
                   copyResetTimer.restart()
                 } else if (modelData.kind === "url") {
-                  root.executeUrlOpen(String(modelData.value))
+                  cardRoot.executeUrlOpen(String(modelData.value))
+                } else if (modelData.kind === "app") {
+                  cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", "default_open_app")
                 } else {
-                  root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(modelData.id))
+                  cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", String(modelData.id))
                 }
               }
             }
@@ -705,7 +765,8 @@ Item {
         // More Actions Menu Button (if > 2 actions)
         Rectangle {
           id: moreBtn
-          visible: !root.isSnoozed && !!(root.cardActions && root.cardActions.more && root.cardActions.more.length > 0)
+          z: 1000
+          visible: !cardRoot.isSnoozed && !!(cardRoot.cardActions && cardRoot.cardActions.more && cardRoot.cardActions.more.length > 0)
           height: Style.space(26)
           implicitWidth: moreLabel.implicitWidth + Style.space(16)
           radius: Style.space(6)
@@ -714,18 +775,18 @@ Item {
           color: moreMouse.pressed
             ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.22)
             : (moreMouse.containsMouse ? Qt.rgba(foreground.r, foreground.g, foreground.b, 0.14) : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08))
-          border.color: root.cardBorder
+          border.color: cardRoot.cardBorder
           border.width: 1
 
           Text {
             id: moreLabel
             anchors.centerIn: parent
             textFormat: Text.PlainText
-            text: "More (" + (root.cardActions && root.cardActions.more ? root.cardActions.more.length : 0) + ")"
+            text: "More (" + (cardRoot.cardActions && cardRoot.cardActions.more ? cardRoot.cardActions.more.length : 0) + ")"
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: true
-            color: root.foreground
+            color: cardRoot.foreground
           }
 
           MouseArea {
@@ -733,34 +794,20 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              snoozePopup.visible = false
-              morePopup.visible = !morePopup.visible
-            }
+            onClicked: cardRoot.openMore()
           }
 
           // More Actions Dropdown Menu
           Rectangle {
             id: morePopup
             visible: false
-            z: 210
+            z: 1000
             width: Style.space(130)
             height: moreCol.implicitHeight + Style.space(12)
-            // Flip upward if near bottom of viewport
-            anchors.top: flipMoreUp ? undefined : parent.bottom
-            anchors.bottom: flipMoreUp ? parent.top : undefined
-            anchors.topMargin: flipMoreUp ? 0 : Style.space(4)
-            anchors.bottomMargin: flipMoreUp ? Style.space(4) : 0
-            anchors.left: parent.left
             radius: Math.max(8, Style.cornerRadius)
             color: Commons.Color.popups.background
             border.color: Commons.Color.popups.border
             border.width: 1
-
-            readonly property bool flipMoreUp: {
-              var pt = moreBtn.mapToItem(null, 0, 0)
-              return pt.y > 440
-            }
 
             Column {
               id: moreCol
@@ -769,7 +816,7 @@ Item {
               spacing: Style.space(4)
 
               Repeater {
-                model: (root.cardActions && root.cardActions.more) || []
+                model: (cardRoot.cardActions && cardRoot.cardActions.more) || []
                 Rectangle {
                   width: parent.width
                   height: Style.space(24)
@@ -783,7 +830,7 @@ Item {
                     font.family: Style.font.family
                     font.pixelSize: Style.font.caption
                     font.bold: true
-                    color: extraActMouse.containsMouse ? Commons.Color.accent : root.foreground
+                    color: extraActMouse.containsMouse ? Commons.Color.accent : cardRoot.foreground
                   }
 
                   MouseArea {
@@ -794,11 +841,13 @@ Item {
                     onClicked: {
                       morePopup.visible = false
                       if (modelData.kind === "code") {
-                        root.executeCodeCopy(String(modelData.value))
+                        cardRoot.executeCodeCopy(String(modelData.value))
                       } else if (modelData.kind === "url") {
-                        root.executeUrlOpen(String(modelData.value))
+                        cardRoot.executeUrlOpen(String(modelData.value))
+                      } else if (modelData.kind === "app") {
+                        cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", "default_open_app")
                       } else {
-                        root.actionTriggered(root.notificationData ? root.notificationData.key : "", String(modelData.id))
+                        cardRoot.actionTriggered(cardRoot.notificationData ? cardRoot.notificationData.key : "", String(modelData.id))
                       }
                     }
                   }
@@ -811,97 +860,14 @@ Item {
         Item { Layout.fillWidth: true }
       }
 
-      // ==================== INLINE REPLY FIELD ====================
-      Rectangle {
-        id: replyBox
-        width: parent.width
-        height: Style.space(32)
-        visible: root.canReply && !root.isSnoozed
-        radius: Style.space(6)
-        color: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08)
-        border.color: replyInput.activeFocus ? Commons.Color.accent : root.cardBorder
-        border.width: 1
-
-        RowLayout {
-          anchors.fill: parent
-          anchors.leftMargin: Style.space(10)
-          anchors.rightMargin: Style.space(6)
-          spacing: Style.space(6)
-
-          TextInput {
-            id: replyInput
-            Layout.fillWidth: true
-            color: root.foreground
-            font.family: Style.font.family
-            font.pixelSize: Style.font.caption
-            clip: true
-
-            Text {
-              anchors.fill: parent
-              visible: !replyInput.text && !replyInput.activeFocus
-              textFormat: Text.PlainText
-              text: "Reply to " + (root.notificationData && root.notificationData.app ? root.notificationData.app : "message") + "..."
-              font: replyInput.font
-              color: root.dimColor
-            }
-
-            Keys.onReturnPressed: function() {
-              if (replyInput.text.trim()) {
-                root.replySubmitted(root.notificationData ? root.notificationData.key : "", replyInput.text.trim())
-                replyInput.text = ""
-                replyInput.focus = false
-                root.forceActiveFocus()
-              }
-            }
-            Keys.onEscapePressed: function() {
-              replyInput.text = ""
-              replyInput.focus = false
-              root.forceActiveFocus()
-            }
-          }
-
-          // Send Button
-          Rectangle {
-            width: Style.space(22)
-            height: Style.space(22)
-            radius: width / 2
-            color: sendMouse.containsMouse ? Commons.Color.accent : "transparent"
-
-            Text {
-              anchors.centerIn: parent
-              textFormat: Text.PlainText
-              text: "\uf1d8"
-              font.family: Style.font.family
-              font.pixelSize: Style.space(11)
-              color: sendMouse.containsMouse ? Commons.Color.background : Commons.Color.accent
-            }
-
-            MouseArea {
-              id: sendMouse
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: {
-                if (replyInput.text.trim()) {
-                  root.replySubmitted(root.notificationData ? root.notificationData.key : "", replyInput.text.trim())
-                  replyInput.text = ""
-                  replyInput.focus = false
-                  root.forceActiveFocus()
-                }
-              }
-            }
-          }
-        }
-      }
-
       // ==================== APP GROUP COLLAPSE / EXPAND BADGE ====================
       Rectangle {
-        visible: root.isGroupHeader && root.groupExtraCount > 0
+        visible: cardRoot.isGroupHeader && cardRoot.groupExtraCount > 0
         width: parent.width
         height: Style.space(24)
         radius: Style.space(5)
         color: groupMouse.containsMouse ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.18) : Qt.rgba(foreground.r, foreground.g, foreground.b, 0.05)
-        border.color: root.cardBorder
+        border.color: cardRoot.cardBorder
         border.width: 1
 
         Row {
@@ -911,7 +877,7 @@ Item {
           Text {
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.groupExpanded ? "\uf106" : "\uf107"
+            text: cardRoot.groupExpanded ? "\uf106" : "\uf107"
             font.family: Style.font.family
             font.pixelSize: Style.space(12)
             color: Commons.Color.accent
@@ -920,11 +886,11 @@ Item {
           Text {
             anchors.verticalCenter: parent.verticalCenter
             textFormat: Text.PlainText
-            text: root.groupExpanded ? "Collapse group" : ("+" + root.groupExtraCount + " more from " + (root.notificationData && root.notificationData.app ? root.notificationData.app : ""))
+            text: cardRoot.groupExpanded ? "Collapse group" : ("+" + cardRoot.groupExtraCount + " more from " + (cardRoot.notificationData && cardRoot.notificationData.app ? cardRoot.notificationData.app : ""))
             font.family: Style.font.family
             font.pixelSize: Style.font.caption
             font.bold: true
-            color: root.foreground
+            color: cardRoot.foreground
           }
         }
 
@@ -933,7 +899,7 @@ Item {
           anchors.fill: parent
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.groupToggleRequested(root.notificationData ? root.notificationData.app : "")
+          onClicked: cardRoot.groupToggleRequested(cardRoot.notificationData ? cardRoot.notificationData.app : "")
         }
       }
     }

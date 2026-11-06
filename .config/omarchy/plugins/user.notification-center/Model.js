@@ -10,13 +10,13 @@ function extractVerificationCode(summary, body) {
   var text = (summary || "") + " " + (body || "")
   if (!text.trim()) return ""
 
-  // 1. Look for code keywords followed by 4-8 digits
-  var m1 = text.match(/(?:code|otp|pin|token|verification|verify|password|auth|login|confirmation)[^0-9\n]{0,25}\b([0-9]{4,8})\b/i)
-  if (m1 && m1[1]) return m1[1]
+  // 1. Look for code keywords followed by 4-8 digits or 3-4 digits + hyphen/space + 3-4 digits or G-digits
+  var m1 = text.match(/(?:code|otp|pin|token|verification|verify|password|auth|login|confirmation)[^0-9\n]{0,25}\b(?:G-)?([0-9]{3,4}[- ]?[0-9]{3,4}|[0-9]{4,8})\b/i)
+  if (m1 && m1[1]) return m1[1].replace(/[- ]/g, "")
 
-  // 2. Look for 4-8 digits followed by code keywords
-  var m2 = text.match(/\b([0-9]{4,8})\b[^0-9\n]{0,25}\b(?:is your|is the)?\s*(?:code|otp|pin|token|verification|confirmation)/i)
-  if (m2 && m2[1]) return m2[1]
+  // 2. Look for digits followed by code keywords
+  var m2 = text.match(/\b(?:G-)?([0-9]{3,4}[- ]?[0-9]{3,4}|[0-9]{4,8})\b[^0-9\n]{0,25}\b(?:is your|is the)?\s*(?:code|otp|pin|token|verification|confirmation)/i)
+  if (m2 && m2[1]) return m2[1].replace(/[- ]/g, "")
 
   return ""
 }
@@ -24,8 +24,15 @@ function extractVerificationCode(summary, body) {
 function sanitizeUrl(url) {
   if (!url || typeof url !== "string") return ""
   var trimmed = url.trim()
-  if (/^https?:\/\/[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+(?:\/[^\s<>"'{}|\\`]*)?/i.test(trimmed)) {
-    return trimmed.replace(/[.,;:!)]+$/, "")
+  if (/^https?:\/\/(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+)(?::\d+)?(?:\/[^\s<>"'{}|\\`]*)?/i.test(trimmed)) {
+    var openCount = (trimmed.match(/\(/g) || []).length
+    var closeCount = (trimmed.match(/\)/g) || []).length
+    if (closeCount > openCount) {
+      trimmed = trimmed.replace(/[.,;:!)]+$/, "")
+    } else {
+      trimmed = trimmed.replace(/[.,;:!]+$/, "")
+    }
+    return trimmed
   }
   return ""
 }
@@ -33,7 +40,7 @@ function sanitizeUrl(url) {
 function extractUrl(summary, body) {
   var text = (summary || "") + " " + (body || "")
   if (!text.trim()) return ""
-  var m = text.match(/\bhttps?:\/\/[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+(?:\/[^\s<>"'{}|\\`]*)?/i)
+  var m = text.match(/\bhttps?:\/\/(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|[^\s<>"'{}|\\^`]+(?:\.[^\s<>"'{}|\\^`]+)+)(?::\d+)?(?:\/[^\s<>"'{}|\\`]*)?/i)
   if (m && m[0]) {
     return sanitizeUrl(m[0])
   }
@@ -125,24 +132,18 @@ function parseActions(raw) {
   return list
 }
 
-function supportsReply(item) {
+function isMessageApp(item) {
   if (!item) return false
-  if (item.hasReply === true) return true
-
-  var real = parseActions(item)
-  for (var i = 0; i < real.length; i++) {
-    var id = (real[i].id || "").toLowerCase()
-    var lbl = (real[i].label || "").toLowerCase()
-    if (id.indexOf("reply") >= 0 || lbl === "reply") return true
-  }
-
   var app = (item.app || "").toLowerCase()
-  var messagingApps = ["telegram", "slack", "discord", "signal", "whatsapp", "messages", "sms", "element", "matrix", "chat"]
+  var messagingApps = ["telegram", "slack", "discord", "signal", "whatsapp", "messages", "sms", "element", "matrix", "chat", "zulip", "thunderbird"]
   for (var j = 0; j < messagingApps.length; j++) {
     if (app.indexOf(messagingApps[j]) >= 0) return true
   }
-
   return false
+}
+
+function supportsReply(item) {
+  return isMessageApp(item)
 }
 
 function getCardActions(item) {
@@ -177,6 +178,14 @@ function getCardActions(item) {
       all.push(act)
       seenLabels[act.label] = true
     }
+  }
+
+  // 4. Default App focus action if no actions and has valid app
+  var appName = (item.app || "").trim()
+  if (all.length === 0 && appName && appName !== "notify-send" && appName !== "System") {
+    var appAction = { id: "default_open_app", label: "Open " + appName, kind: "app", value: appName }
+    all.push(appAction)
+    seenLabels[appAction.label] = true
   }
 
   // Split into up to 2 direct buttons, and the rest into more menu
@@ -282,7 +291,8 @@ function defaultUserState() {
     snoozed: {},
     mutedApps: {},
     readKeys: {},
-    focusUntil: 0
+    focusUntil: 0,
+    focusPreset: ""
   }
 }
 
@@ -296,15 +306,17 @@ function parseUserState(text) {
         snoozed: (s.snoozed && typeof s.snoozed === "object" && s.snoozed !== null) ? s.snoozed : {},
         mutedApps: (s.mutedApps && typeof s.mutedApps === "object" && s.mutedApps !== null) ? s.mutedApps : {},
         readKeys: (s.readKeys && typeof s.readKeys === "object" && s.readKeys !== null) ? s.readKeys : {},
-        focusUntil: Number(s.focusUntil || 0)
+        focusUntil: Number(s.focusUntil || 0),
+        focusPreset: String(s.focusPreset || "")
       }
     }
   } catch(e) {}
   return defaultUserState()
 }
 
+// Note: minified serialization to match backend JSON format
 function serializeUserState(state) {
-  return JSON.stringify(state || defaultUserState(), null, 2)
+  return JSON.stringify(state || defaultUserState())
 }
 
 function isPinned(state, key) {
@@ -405,7 +417,7 @@ function filterNotifications(items, state, activeFilter, searchQuery, nowSec, un
     } else if (activeFilter === "Urgent") {
       if (item.urgency !== 2) continue
     } else if (activeFilter === "Messages") {
-      if (!supportsReply(item)) continue
+      if (!isMessageApp(item)) continue
     } else if (activeFilter === "Pinned") {
       if (!pinned) continue
     }
@@ -487,9 +499,30 @@ function groupNotifications(items, expandedApps) {
   return out
 }
 
-function formatRelativeTime(ts) {
+function computeUnreadCount(notifications, userState, nowSec) {
+  if (!notifications || !userState) return 0
+  nowSec = nowSec || (Date.now() / 1000)
+  var count = 0
+  for (var i = 0; i < notifications.length; i++) {
+    var it = notifications[i]
+    if (!it) continue
+    if (!isRead(userState, it.key) && !isSnoozed(userState, it.key, nowSec) && !isMuted(userState, it.app)) {
+      count++
+    }
+  }
+  return count
+}
+
+function getTomorrowSec() {
+  var d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(8, 0, 0, 0)
+  return Math.floor(d.getTime() / 1000)
+}
+
+function formatRelativeTime(ts, nowSec) {
   if (!ts) return ""
-  var now = Date.now() / 1000
+  var now = (typeof nowSec === "number" && nowSec > 0) ? nowSec : (Date.now() / 1000)
   var diff = Math.max(0, Math.floor(now - ts))
   if (diff < 45) return "Just now"
   if (diff < 3600) return Math.floor(diff / 60) + "m ago"
@@ -510,6 +543,9 @@ function iconGlyphFor(item) {
   if (name.indexOf("bluetooth") >= 0) return "\udb80\udcb0"
   if (name.indexOf("audio") >= 0 || name.indexOf("volume") >= 0 || name.indexOf("sound") >= 0) return "\udb81\udd7e"
   if (name.indexOf("music") >= 0 || name.indexOf("spotify") >= 0) return "\udb81\udf5a"
+  if (name.indexOf("slack") >= 0) return "\udb80\udf31"
+  if (name.indexOf("discord") >= 0) return "\udb80\ude7c"
+  if (name.indexOf("telegram") >= 0) return "\udb81\uddfe"
   if (name.indexOf("update") >= 0) return "\uf021"
   if (name.indexOf("fingerprint") >= 0) return "\udb80\ude37"
   if (name.indexOf("keybinding") >= 0 || name.indexOf("keyboard") >= 0) return "\uf11c"

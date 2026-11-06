@@ -10,6 +10,8 @@ set -euo pipefail
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$HOME/.config-backups/$(date '+%Y%m%d_%H%M%S')"
 MODE="symlink"
+NOTIFICATION_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center"
+NOTIFICATION_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/user.notification-center"
 
 # Color helpers
 RED='\033[0;31m'
@@ -78,7 +80,7 @@ install_item() {
     ln -sf "$src" "$dest"
     ok "Linked: $dest -> $src"
   else
-    cp -r "$src" "$dest"
+    cp -a "$src" "$dest"
     ok "Copied: $src -> $dest"
   fi
 }
@@ -89,11 +91,11 @@ install_item "$DOTFILES_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 install_item "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
 install_item "$DOTFILES_DIR/.zfunc/_download" "$HOME/.zfunc/_download"
 install_item "$DOTFILES_DIR/.config/hypr" "$HOME/.config/hypr"
-install_item "$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center" "$HOME/.config/omarchy/plugins/user.notification-center"
+install_item "$NOTIFICATION_PLUGIN" "$NOTIFICATION_PLUGIN_TARGET"
 
 # Ensure scripts have execute permissions
 chmod +x "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
-chmod +x "$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center/manage.py" "$HOME/.config/omarchy/plugins/user.notification-center/manage.py"
+chmod +x "$NOTIFICATION_PLUGIN/manage.py" "$NOTIFICATION_PLUGIN_TARGET/manage.py"
 
 # Enable Omarchy shell plugin if running on Omarchy
 if command -v omarchy >/dev/null 2>&1; then
