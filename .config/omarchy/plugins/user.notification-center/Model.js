@@ -294,6 +294,7 @@ function defaultUserState() {
     snoozed: {},
     mutedApps: {},
     readKeys: {},
+    deletedKeys: {},
     focusUntil: 0,
     focusPreset: ""
   }
@@ -309,6 +310,7 @@ function parseUserState(text) {
         snoozed: (s.snoozed && typeof s.snoozed === "object" && s.snoozed !== null) ? s.snoozed : {},
         mutedApps: (s.mutedApps && typeof s.mutedApps === "object" && s.mutedApps !== null) ? s.mutedApps : {},
         readKeys: (s.readKeys && typeof s.readKeys === "object" && s.readKeys !== null) ? s.readKeys : {},
+        deletedKeys: (s.deletedKeys && typeof s.deletedKeys === "object" && s.deletedKeys !== null) ? s.deletedKeys : {},
         focusUntil: Number(s.focusUntil || 0),
         focusPreset: String(s.focusPreset || "")
       }

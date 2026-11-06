@@ -82,7 +82,10 @@ Item {
     var out = []
     for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
       var it = panelRoot.rawNotifications[i]
-      if (it && it.key && !panelRoot.pendingDeletesMap[it.key] && !panelRoot.committedDeletes[it.key]) {
+      if (it && it.key &&
+          !panelRoot.pendingDeletesMap[it.key] &&
+          !panelRoot.committedDeletes[it.key] &&
+          !(panelRoot.userState.deletedKeys && panelRoot.userState.deletedKeys[it.key])) {
         out.push(it)
       }
     }
@@ -454,7 +457,7 @@ Item {
     panelRoot.undoMessage = strings.tn("notificationsCleared", newDeletes.length).arg(newDeletes.length)
     panelRoot.undoAction = "delete"
     panelRoot.undoVisible = true
-    undoTimer.restart()
+    panelRoot.commitPendingDeletes()
   }
 
   function commitPendingDeletes() {
@@ -465,8 +468,13 @@ Item {
     }
     var keys = panelRoot.pendingDeletes.slice()
     var committed = Object.assign({}, panelRoot.committedDeletes)
+    var deleted = Object.assign({}, panelRoot.userState.deletedKeys || {})
     for (var i = 0; i < keys.length; i++) committed[keys[i]] = true
+    for (var j = 0; j < keys.length; j++) deleted[keys[j]] = true
     panelRoot.committedDeletes = committed
+    panelRoot.userState.deletedKeys = deleted
+    panelRoot.userStateChanged()
+    panelRoot.saveState()
     panelRoot.pendingDeletes = []
     panelRoot.pendingDeletesMap = ({})
     panelRoot.undoVisible = false

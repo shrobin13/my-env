@@ -54,6 +54,7 @@ def prune_user_state(keys_to_remove):
 
 def clear_all():
     atomic_write_json(HISTORY_FILE, [])
+    atomic_write_json(LIVE_FILE, [])
     try:
         subprocess.run(["omarchy-shell", "notifications", "dismissAll"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
