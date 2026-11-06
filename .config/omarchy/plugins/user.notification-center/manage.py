@@ -11,6 +11,7 @@ import os
 import json
 import subprocess
 import tempfile
+import re
 
 STATE_DIR = os.path.expanduser("~/.local/state/omarchy/notifications")
 HISTORY_FILE = os.path.join(STATE_DIR, "history.json")
@@ -214,6 +215,78 @@ def open_clipboard():
     except Exception as e:
         print(f"error: {e}")
 
+def desktop_launcher_id(app):
+    normalized = " ".join(str(app or "").lower().split())
+    if normalized in ("telegram", "telegram desktop"):
+        return "org.telegram.desktop.desktop"
+    return ""
+
+
+def focus_notification_window(app, sender_pid=0):
+    try:
+        result = subprocess.run(
+            ["hyprctl", "clients", "-j"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return False
+        clients = json.loads(result.stdout)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(clients, list):
+        return False
+
+    candidates = []
+    try:
+        pid = int(sender_pid or 0)
+    except (TypeError, ValueError):
+        pid = 0
+
+    if pid > 0:
+        candidates = [client for client in clients if client.get("pid") == pid]
+
+    if not candidates:
+        words = re.findall(r"[a-z0-9]+", str(app or "").lower())
+        slug = "".join(words)
+        tail = "." + ".".join(words) if len(words) > 1 else ""
+        for client in clients:
+            identities = [
+                str(client.get("class") or "").lower(),
+                str(client.get("initialClass") or "").lower(),
+            ]
+            for identity in identities:
+                dotted = "." + re.sub(r"[^a-z0-9]+", ".", identity)
+                if identity == slug or (tail and dotted.endswith(tail)):
+                    candidates.append(client)
+                    break
+
+    if not candidates:
+        return False
+
+    candidates.sort(key=lambda client: int(client.get("focusHistoryID", -1)))
+    address = str(candidates[-1].get("address") or "")
+    if not re.fullmatch(r"0x[0-9a-f]+", address, re.IGNORECASE):
+        return False
+
+    focused = subprocess.run(
+        ["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{address}" }})'],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if focused.returncode != 0:
+        focused = subprocess.run(
+            ["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    return focused.returncode == 0
+
+
 def run_action(key, action_id=""):
     if not key:
         return
@@ -266,16 +339,42 @@ def run_action(key, action_id=""):
         except Exception as e:
             print(f"error-argv: {e}")
 
-    # 3. Focus application window if an app name is associated
+    # 3. Focus the application window if an app name is associated
     app = (item.get("app") or item.get("source") or "").strip()
     if app and app != "notify-send" and app != "System":
         try:
             subprocess.run(["omarchy-shell", "user.notification-center", "close"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            subprocess.Popen(["omarchy-hyprland-focus-app", app])
-            print(f"app-focus-launched: {app}")
-            return
+            if focus_notification_window(app, item.get("senderPid")):
+                print(f"app-focused: {app}")
+                return
+            focus_result = subprocess.run(
+                ["omarchy-hyprland-focus-app", app],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            if focus_result.returncode == 0:
+                print(f"app-focused: {app}")
+                return
         except Exception as e:
             print(f"error-focus-app: {e}")
+
+        launcher_id = desktop_launcher_id(app)
+        if launcher_id:
+            try:
+                launch_result = subprocess.run(
+                    ["gtk-launch", launcher_id],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                if launch_result.returncode == 0:
+                    print(f"desktop-app-launched: {launcher_id}")
+                    return
+                print(f"error-desktop-launch: {launch_result.stderr.strip()}")
+            except Exception as e:
+                print(f"error-desktop-launch: {e}")
 
     print("no-executable-action")
 

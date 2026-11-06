@@ -217,6 +217,8 @@ function normalizeItem(raw, isLive) {
   var app = String(raw.app || raw.source || "System").slice(0, 100)
   var appIcon = String(raw.appIcon || "").slice(0, 256)
   var glyph = String(raw.glyph || "").slice(0, 32)
+  var senderPid = Number(raw.senderPid || 0)
+  if (!isFinite(senderPid) || senderPid < 0) senderPid = 0
   var urgency = typeof raw.urgency === "number" ? raw.urgency : 1
   var ts = typeof raw.ts === "number" ? raw.ts : (Date.now() / 1000)
   var execArgv = String(raw.execArgv || "")
@@ -239,6 +241,7 @@ function normalizeItem(raw, isLive) {
     app: app,
     appIcon: appIcon,
     glyph: glyph,
+    senderPid: senderPid,
     urgency: urgency,
     ts: ts,
     execArgv: execArgv,
