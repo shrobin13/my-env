@@ -379,6 +379,53 @@ remove_app() {
 }
 
 # ════════════════════════════════════════════════════════════════════════════
+# SECTION 9.5 — POSTGRESQL SERVICE ALIASES
+# ════════════════════════════════════════════════════════════════════════════
+
+# Start PostgreSQL and open a psql shell
+alias pgstart='sudo systemctl start postgresql && echo "✅ PostgreSQL started"'
+
+# Stop PostgreSQL
+alias pgstop='sudo systemctl stop postgresql && echo "⛔ PostgreSQL stopped"'
+
+# Enable PostgreSQL on boot
+alias pgenable='sudo systemctl enable postgresql && echo "🔁 PostgreSQL will start on boot"'
+
+# Disable PostgreSQL on boot (default — start manually with pgstart)
+alias pgdisable='sudo systemctl disable postgresql && echo "🚫 PostgreSQL disabled on boot"'
+
+# Status at a glance
+alias pgstatus='systemctl status postgresql --no-pager -l'
+
+# ════════════════════════════════════════════════════════════════════════════
+# SECTION 9.6 — SECURITY-HARDENING SERVICE TOGGLES
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Avahi mDNS (LAN discovery / Bonjour) ────────────────────────────────────
+alias avahi-on='sudo systemctl enable --now avahi-daemon.service avahi-daemon.socket && echo "📡 Avahi enabled — machine visible on LAN"'
+alias avahi-off='sudo systemctl disable --now avahi-daemon.service avahi-daemon.socket && echo "🔇 Avahi disabled — machine hidden from LAN"'
+alias avahi-status='systemctl status avahi-daemon.service --no-pager -l'
+
+# ── libvirt / QEMU/KVM virtualisation stack ──────────────────────────────────
+alias virt-on='sudo systemctl enable --now libvirtd.service libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket virtlockd.socket virtlogd.socket && echo "🖥️  libvirt enabled"'
+alias virt-off='sudo systemctl disable --now libvirtd.service libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket virtlockd.socket virtlogd.socket && echo "🔒 libvirt disabled"'
+alias virt-status='systemctl status libvirtd.service --no-pager -l'
+
+# ── CUPS print server ─────────────────────────────────────────────────────────
+alias cups-on='sudo systemctl enable --now cups.service cups.socket cups.path && echo "🖨️  CUPS enabled"'
+alias cups-off='sudo systemctl disable --now cups.service cups.socket cups.path && echo "🚫 CUPS disabled"'
+alias cups-status='systemctl status cups.service --no-pager -l'
+
+# ── SSH hardening helpers ─────────────────────────────────────────────────────
+alias sshd-config='sudo cat /etc/ssh/sshd_config.d/hardening.conf'
+alias sshd-restart='sudo systemctl restart sshd && echo "🔄 sshd restarted"'
+alias sshd-status='systemctl status sshd --no-pager -l'
+
+# ── PAM faillock ──────────────────────────────────────────────────────────────
+alias faillock-status='faillock --user $USER'
+alias faillock-reset='sudo faillock --user $USER --reset && echo "🔓 Faillock reset for $USER"'
+
+# ════════════════════════════════════════════════════════════════════════════
 # SECTION 10 — LOCAL EXTRAS & POWERLEVEL10K
 # ════════════════════════════════════════════════════════════════════════════
 

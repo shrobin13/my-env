@@ -29,9 +29,9 @@ hl.config({
 		blur = {
 			enabled = true,
 
-			-- Strong but still reasonable on an Intel iGPU
-			size = 10,
-			passes = 3,
+			-- Optimized for Intel Iris Xe at 100Hz
+			size = 6,
+			passes = 2,
 
 			-- Important for transparent Kitty windows
 			ignore_opacity = true,
@@ -40,7 +40,7 @@ hl.config({
 			new_optimizations = true,
 
 			-- Better performance for floating windows
-			xray = false,
+			xray = true,
 
 			-- Blur appearance
 			noise = 0.0117,
