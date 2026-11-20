@@ -85,6 +85,7 @@ Item {
       if (it && it.key &&
           !panelRoot.pendingDeletesMap[it.key] &&
           !panelRoot.committedDeletes[it.key] &&
+          !Model.isCleared(panelRoot.userState, it) &&
           !(panelRoot.userState.deletedKeys && panelRoot.userState.deletedKeys[it.key])) {
         out.push(it)
       }
@@ -149,6 +150,7 @@ Item {
               currentItem.isPinned !== rowData.isPinned ||
               currentItem.isSnoozed !== rowData.isSnoozed ||
               currentItem.sectionName !== rowData.sectionName ||
+              currentItem.isGroupHeader !== rowData.isGroupHeader ||
               currentItem.groupExpanded !== rowData.groupExpanded ||
               currentItem.groupExtraCount !== rowData.groupExtraCount) {
             notifListModel.set(i, rowData)
@@ -453,13 +455,10 @@ Item {
 
     panelRoot.pendingDeletes = newDeletes
     panelRoot.pendingDeletesMap = newMap
-    if (toClear.length === panelRoot.activeNotifications.length) {
+    if (toClear.length === panelRoot.filteredList.length) {
       panelRoot.userState.clearedBefore = Math.floor(Date.now() / 1000)
     }
 
-    panelRoot.undoMessage = strings.tn("notificationsCleared", newDeletes.length).arg(newDeletes.length)
-    panelRoot.undoAction = "delete"
-    panelRoot.undoVisible = true
     panelRoot.commitPendingDeletes()
   }
 
@@ -479,8 +478,12 @@ Item {
     panelRoot.userStateChanged()
     panelRoot.saveState()
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-    for (var offset = 0; offset < keys.length; offset += 50) {
-      Quickshell.execDetached(["python3", script, "delete-keys", "--"].concat(keys.slice(offset, offset + 50)))
+    if (keys.length === panelRoot.rawNotifications.length) {
+      Quickshell.execDetached(["python3", script, "clear"])
+    } else {
+      for (var offset = 0; offset < keys.length; offset += 50) {
+        Quickshell.execDetached(["python3", script, "delete-keys", "--"].concat(keys.slice(offset, offset + 50)))
+      }
     }
     panelRoot.pendingDeletes = []
     panelRoot.pendingDeletesMap = ({})
@@ -738,28 +741,28 @@ Item {
         Column {
           id: titleColumn
           width: parent.width
-        spacing: Style.space(2)
+          spacing: Style.space(2)
 
-        Text {
-          textFormat: Text.PlainText
-          text: strings.t("title")
-          font.family: Style.font.family
-          font.pixelSize: Math.max(16, Style.font.title)
-          font.bold: true
-          color: panelRoot.foreground
-        }
+          Text {
+            textFormat: Text.PlainText
+            text: strings.t("title")
+            font.family: Style.font.family
+            font.pixelSize: Math.max(16, Style.font.title)
+            font.bold: true
+            color: panelRoot.foreground
+          }
 
-        Text {
-          textFormat: Text.PlainText
-          text: panelRoot.countUnread > 0 ? (panelRoot.countUnread + " " + strings.t("unread")) : strings.t("allCaughtUp")
-          font.family: Style.font.family
-          font.pixelSize: Style.font.caption
-          color: panelRoot.dimColor
-          width: parent.width
-          elide: Text.ElideRight
+          Text {
+            textFormat: Text.PlainText
+            text: panelRoot.countUnread > 0 ? (panelRoot.countUnread + " " + strings.t("unread")) : strings.t("allCaughtUp")
+            font.family: Style.font.family
+            font.pixelSize: Style.font.caption
+            color: panelRoot.dimColor
+            width: parent.width
+            elide: Text.ElideRight
+          }
         }
-      }
-      }
+        }
 
       // Muted Apps Button (Shown if any apps are muted)
       Rectangle {

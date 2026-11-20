@@ -395,7 +395,7 @@ Item {
           id: hoverBar
           spacing: Style.space(4)
           opacity: (cardHover.hovered || snoozePopup.visible || morePopup.visible) ? 1.0 : 0.0
-          visible: opacity > 0
+          visible: true
 
           Behavior on opacity {
             NumberAnimation { duration: Style.duration(140); easing.type: Easing.OutCubic }

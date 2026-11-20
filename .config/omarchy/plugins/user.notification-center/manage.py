@@ -54,27 +54,22 @@ def prune_user_state(keys_to_remove):
         print(f"error-prune-state: {e}", file=sys.stderr)
 
 def clear_all():
-    deleted_keys = set()
-    for path in (HISTORY_FILE, LIVE_FILE):
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                items = json.load(f)
-            if isinstance(items, list):
-                deleted_keys.update(
-                    item.get("key") for item in items
-                    if isinstance(item, dict) and item.get("key")
-                )
-        except Exception as e:
-            print(f"error-read-clear-keys: {e}", file=sys.stderr)
-
+    cutoff = int(time.time())
+    # First make the persisted store empty so the notification plugin cannot
+    # render a stale row while the daemon is clearing its in-memory cards.
     atomic_write_json(HISTORY_FILE, [])
     atomic_write_json(LIVE_FILE, [])
+
+    # Dismiss live cards.  This also moves them through the daemon's normal
+    # close path, then the two-file store is cleared again after its save
+    # debounce has flushed.
     try:
         subprocess.run(["omarchy-shell", "notifications", "dismissAll"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
+    time.sleep(1.0)
+    atomic_write_json(HISTORY_FILE, [])
+    atomic_write_json(LIVE_FILE, [])
 
     # Clear keys from user state
     if os.path.isfile(USER_STATE_FILE):
@@ -86,13 +81,16 @@ def clear_all():
                 s["snoozed"] = {}
                 s["readKeys"] = {}
                 s["clearedBefore"] = int(time.time())
-                deleted = s.get("deletedKeys")
-                if not isinstance(deleted, dict):
-                    deleted = {}
-                for key in deleted_keys:
-                    deleted[key] = True
-                s["deletedKeys"] = deleted
+                s["deletedKeys"] = {}
                 atomic_write_json(USER_STATE_FILE, s)
+        except Exception:
+            pass
+
+    # The daemon keeps history in memory.  Restarting the shell discards that
+    # stale in-memory history after the files have been cleared.
+    if not os.environ.get("OMARCHY_TESTING"):
+        try:
+            subprocess.run(["omarchy", "restart", "shell"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
@@ -105,8 +103,12 @@ def delete_key(key):
 
 def delete_keys(keys):
     if not keys:
+        print("deleted 0 keys")
         return
     key_set = set(k for k in keys if k)
+    if not key_set:
+        print("deleted 0 keys")
+        return
     for path in (HISTORY_FILE, LIVE_FILE):
         if not os.path.isfile(path):
             continue
@@ -151,6 +153,17 @@ def set_focus(seconds):
         try:
             subprocess.run(["omarchy-shell", "notifications", "setDnd", "on"],
                            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Persist the indefinite focus state so it survives a restart
+            if os.path.isfile(USER_STATE_FILE):
+                try:
+                    with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+                        s = json.load(f)
+                    if isinstance(s, dict):
+                        s["focusUntil"] = 0
+                        s["focusPreset"] = "0"
+                        atomic_write_json(USER_STATE_FILE, s)
+                except Exception:
+                    pass
             print("focus-on-indefinite")
         except Exception as e:
             print(f"error-focus-on: {e}")
@@ -199,9 +212,9 @@ def toggle_dnd():
             try:
                 with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
                     state = json.load(f)
-                if isinstance(state, dict) and state.get("focusUntil", 0):
+                if isinstance(state, dict) and (state.get("focusUntil", 0) or state.get("focusPreset", "")):
                     state["focusUntil"] = 0
-                    state["focusPreset"] = "0"
+                    state["focusPreset"] = ""
                     atomic_write_json(USER_STATE_FILE, state)
             except Exception as e:
                 print(f"error-reset-focus: {e}", file=sys.stderr)
@@ -338,7 +351,7 @@ def run_action(key, action_id=""):
     # 1. If an action_id starting with exec_ is given
     if action_id and action_id.startswith("exec_"):
         try:
-            idx = int(action_id.split("_")[1])
+            idx = int(action_id[5:])
             exec_actions_raw = item.get("execActions", "")
             if exec_actions_raw:
                 ea = json.loads(exec_actions_raw) if isinstance(exec_actions_raw, str) else exec_actions_raw
