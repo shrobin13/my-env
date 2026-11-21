@@ -84,8 +84,9 @@ function flatten(model, folds, search) {
         empty: !hasWindows
       });
 
-      var foldKey = root.monitor + ":" + workspace.id + ":" + workspace.number;
-      var isFolded = folds[foldKey] === true;
+      var foldKey1 = root.monitor + ":" + workspace.number;
+      var foldKey2 = root.monitor + ":" + workspace.id + ":" + workspace.number;
+      var isFolded = Boolean(folds && (folds[foldKey1] === true || folds[foldKey2] === true));
 
       if (!isFolded && hasWindows) {
         for (var winI = 0; winI < workspace.windows.length; winI++) {

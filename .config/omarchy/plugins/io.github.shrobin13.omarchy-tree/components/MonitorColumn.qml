@@ -146,8 +146,9 @@ Item {
           monitorName: colRoot.rootData ? colRoot.rootData.monitor : ""
           monitorAccent: colRoot.monitorAccent
 
-          readonly property string foldKey: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.id + ":" + modelData.number
-          isFolded: colRoot.folds[foldKey] === true
+          readonly property string foldKey1: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
+          readonly property string foldKey2: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.id + ":" + modelData.number
+          isFolded: Boolean(colRoot.folds && (colRoot.folds[foldKey1] === true || colRoot.folds[foldKey2] === true))
 
           readonly property string wsKey: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
           isFlashed: colRoot.flashedKey === wsKey

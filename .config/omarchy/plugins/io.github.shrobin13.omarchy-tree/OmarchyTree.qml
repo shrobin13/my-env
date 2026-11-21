@@ -113,8 +113,12 @@ Item {
     var oldCursorWsKey = null
     if (root.treeState && root.treeState.rows && root.treeState.rows[root.treeState.cursor]) {
       var oldRow = root.treeState.rows[root.treeState.cursor]
-      if (oldRow.window) oldCursorAddress = oldRow.window.address
-      else if (oldRow.workspace) oldCursorWsKey = oldRow.monitor + ":" + oldRow.workspace.number
+      if (oldRow.window) {
+        oldCursorAddress = oldRow.window.address
+        if (oldRow.workspace) oldCursorWsKey = oldRow.monitor + ":" + oldRow.workspace.number
+      } else if (oldRow.workspace) {
+        oldCursorWsKey = oldRow.monitor + ":" + oldRow.workspace.number
+      }
     }
 
     var cursor = 0
@@ -165,56 +169,84 @@ Item {
     root.treeStateChanged()
   }
 
-  // Fold semantics per brief §6 & M1 fix:
-  // 'h' on a window moves to its workspace header.
-  // 'h' on a workspace header folds it. Already folded: NO-OP!
-  function foldWorkspaceHeader() {
-    var row = root.currentRow()
-    if (!row || !row.workspace) return
-    var ws = row.workspace
-    var foldKey = row.monitor + ":" + ws.id + ":" + ws.number
-    if (root.folded[foldKey]) {
-      // Already folded: NO-OP
+  function isWorkspaceFolded(monitor, ws) {
+    if (!root.folded || !ws) return false
+    var k1 = monitor + ":" + ws.number
+    var k2 = monitor + ":" + ws.id + ":" + ws.number
+    return root.folded[k1] === true || root.folded[k2] === true
+  }
+
+  function foldWorkspace(monitor, ws) {
+    if (!ws) return
+    var k1 = monitor + ":" + ws.number
+    var k2 = monitor + ":" + ws.id + ":" + ws.number
+    if (root.folded && (root.folded[k1] === true || root.folded[k2] === true)) {
+      // Already folded: NO-OP per M1
       return
     }
-    root.folded[foldKey] = true
+    var nextFolds = Object.assign({}, root.folded)
+    nextFolds[k1] = true
+    nextFolds[k2] = true
+    root.folded = nextFolds
+
+    root.rebuildTree()
+    root.moveToWorkspaceHeader(monitor, ws.number)
+  }
+
+  function unfoldWorkspace(monitor, ws) {
+    if (!ws) return
+    var k1 = monitor + ":" + ws.number
+    var k2 = monitor + ":" + ws.id + ":" + ws.number
+    var nextFolds = Object.assign({}, root.folded)
+    delete nextFolds[k1]
+    delete nextFolds[k2]
+    root.folded = nextFolds
+
     root.rebuildTree()
   }
 
-  function moveToWorkspaceHeader() {
-    var row = root.currentRow()
-    if (!row || !root.treeState || !row.workspace) return
-    var ws = row.workspace
+  function toggleFoldWorkspace(monitor, ws) {
+    if (!ws) return
+    if (root.isWorkspaceFolded(monitor, ws)) {
+      root.unfoldWorkspace(monitor, ws)
+    } else {
+      root.foldWorkspace(monitor, ws)
+    }
+  }
+
+  function moveToWorkspaceHeader(monitor, wsNumber) {
+    if (!root.treeState || !root.treeState.rows) return
     var rows = root.treeState.rows
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].kind === "workspace"
-          && rows[i].monitor === row.monitor
-          && rows[i].workspace.number === ws.number) {
+          && rows[i].monitor === monitor
+          && rows[i].workspace.number === wsNumber) {
         root.setCursor(i)
         return
       }
     }
   }
 
-  // 'l' unfolds workspace header. If already unfolded, moves to first window.
-  function unfoldWorkspace() {
+  function handleKeyH() {
     var row = root.currentRow()
-    if (!row || row.kind !== "workspace" || !root.treeState || !row.workspace) return
-    var ws = row.workspace
-    var foldKey = row.monitor + ":" + ws.id + ":" + ws.number
-    if (root.folded[foldKey]) {
-      delete root.folded[foldKey]
-      root.rebuildTree()
-      return
-    }
-    // Already unfolded: move to its first window
-    var rows = root.treeState.rows
-    for (var i = root.treeState.cursor + 1; i < rows.length; i++) {
-      if (rows[i].kind === "window"
-          && rows[i].monitor === row.monitor
-          && rows[i].workspace.number === ws.number) {
-        root.setCursor(i)
-        return
+    if (!row || !row.workspace) return
+    root.foldWorkspace(row.monitor, row.workspace)
+  }
+
+  function handleKeyL() {
+    var row = root.currentRow()
+    if (!row || !row.workspace) return
+    if (root.isWorkspaceFolded(row.monitor, row.workspace)) {
+      root.unfoldWorkspace(row.monitor, row.workspace)
+    } else if (row.kind === "workspace") {
+      var rows = root.treeState.rows
+      for (var i = root.treeState.cursor + 1; i < rows.length; i++) {
+        if (rows[i].kind === "window"
+            && rows[i].monitor === row.monitor
+            && rows[i].workspace.number === row.workspace.number) {
+          root.setCursor(i)
+          return
+        }
       }
     }
   }
@@ -292,6 +324,9 @@ Item {
 
     dispatchProc.command = sequence[0].command
     dispatchProc.running = true
+
+    // Exit and hide overlay automatically when dispatch happens
+    root.close()
   }
 
   function focusFailed() {
@@ -437,6 +472,11 @@ Item {
   PanelWindow {
     id: panel
     visible: root.opened
+    onVisibleChanged: {
+      if (panel.visible && !root.searchMode) {
+        Qt.callLater(function () { keyCatcher.forceActiveFocus() })
+      }
+    }
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
@@ -545,11 +585,7 @@ Item {
                 searchQuery: root.searchText.toLowerCase()
 
                 onWorkspaceClicked: function(ws) {
-                  var res = Tree.moveToWorkspace(root.treeState, modelData.monitor, ws.number)
-                  if (res >= 0) {
-                    root.setCursor(res)
-                    root.focusCurrent()
-                  }
+                  root.toggleFoldWorkspace(modelData.monitor, ws)
                 }
                 onWindowClicked: function(addr) {
                   root.focusAddress(addr)
@@ -577,6 +613,7 @@ Item {
         id: keyCatcher
         anchors.fill: parent
         focus: true
+        Keys.priority: Keys.BeforeItem
 
         Keys.onPressed: function(event) {
           if (event.key === Qt.Key_Escape || event.text === "q") {
@@ -591,22 +628,17 @@ Item {
 
           if (root.searchMode) return
 
-          if (event.text === "j") {
+          if (event.text === "j" || event.key === Qt.Key_Down) {
             root.move(1)
             event.accepted = true
-          } else if (event.text === "k") {
+          } else if (event.text === "k" || event.key === Qt.Key_Up) {
             root.move(-1)
             event.accepted = true
-          } else if (event.text === "h") {
-            var curr = root.currentRow()
-            if (curr && curr.kind === "window") {
-              root.moveToWorkspaceHeader()
-            } else if (curr && curr.kind === "workspace") {
-              root.foldWorkspaceHeader()
-            }
+          } else if (event.text === "h" || event.key === Qt.Key_Left) {
+            root.handleKeyH()
             event.accepted = true
-          } else if (event.text === "l") {
-            root.unfoldWorkspace()
+          } else if (event.text === "l" || event.key === Qt.Key_Right) {
+            root.handleKeyL()
             event.accepted = true
           } else if (event.text === "/") {
             root.enterSearch()

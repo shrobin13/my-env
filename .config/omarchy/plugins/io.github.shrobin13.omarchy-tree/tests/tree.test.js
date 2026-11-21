@@ -54,6 +54,12 @@ assert(ws1Header, "U8: Workspace 1 header present");
 const ws1Win = foldedRows.find(r => r.kind === "window" && r.monitor === "eDP-1" && r.workspace.number === 1);
 assert(!ws1Win, "U8: Folded workspace windows not present in flattened rows");
 
+// U8b: Simplified fold key "monitor:number" also folds workspace
+const simpFolds = { "eDP-1:1": true };
+const simpFoldedRows = context.flatten(model, simpFolds, "");
+const simpWs1Win = simpFoldedRows.find(r => r.kind === "window" && r.monitor === "eDP-1" && r.workspace.number === 1);
+assert(!simpWs1Win, "U8b: Simplified fold key eDP-1:1 folds windows correctly");
+
 // U9: Search, then j and k, then Esc restores recorded cursor
 state.folds = {};
 state.rows = context.flatten(model, state.folds, "");
