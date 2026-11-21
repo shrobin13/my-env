@@ -28,3 +28,10 @@ Paste `hyprland/layer-rule.lua` into your Hyprland Lua configuration. The overla
 
 - Set `OMARCHY_TREE_REDUCED_MOTION=1` to disable panel motion.
 - Set `OMARCHY_TREE_HC=1` to use a solid, high-contrast panel without scrim.
+
+## Troubleshooting
+
+- Reload plugin code: `omarchy-shell shell rescanPlugins`
+- Toggle directly: `omarchy-shell -q shell toggle io.github.shrobin13.omarchy-tree`
+- Hide directly: `omarchy-shell -q shell hide io.github.shrobin13.omarchy-tree`
+- If window titles or workspaces look stale, reopen the panel; it rebuilds through `hyprctl`.
