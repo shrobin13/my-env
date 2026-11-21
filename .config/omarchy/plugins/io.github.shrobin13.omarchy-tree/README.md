@@ -22,7 +22,7 @@ The exact Lua bind shape may differ under your installed Omarchy version; the li
 
 ## Blur
 
-Paste `hyprland/layer-rule.lua` into your Hyprland Lua configuration. The overlay remains usable without this rule.
+The managed dotfiles configuration already includes `hyprland/layer-rule.lua` usage guidance and adds the live layer rule through `.config/hypr/bindings.lua`. The overlay remains usable without this rule.
 
 ## Accessibility
 

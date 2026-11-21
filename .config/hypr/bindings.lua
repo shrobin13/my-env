@@ -51,3 +51,17 @@ hl.bind("SUPER + Y", hl.dsp.layout("togglesplit"), { description = "Toggle split
 -- KEYBINDINGS MENU (Alternative shortcut because Super+K is Vim focus)
 -- =========================================================
 o.bind("SUPER + CTRL + ALT + K", "Show key bindings", "omarchy-menu-keybindings")
+
+-- =========================================================
+-- WINDOW TREE OVERLAY
+-- =========================================================
+o.bind("SUPER + SHIFT + V", "Window tree",
+  "omarchy-shell -q shell toggle io.github.shrobin13.omarchy-tree")
+
+hl.layer_rule({
+  name = "omarchy-tree-blur",
+  match = { namespace = "^omarchy-tree$" },
+  blur = true,
+  ignore_alpha = 0.5,
+  no_anim = true,
+})

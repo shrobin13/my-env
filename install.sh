@@ -12,6 +12,8 @@ BACKUP_DIR="$HOME/.config-backups/$(date '+%Y%m%d_%H%M%S')"
 MODE="symlink"
 NOTIFICATION_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/user.notification-center"
 NOTIFICATION_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/user.notification-center"
+TREE_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/io.github.shrobin13.omarchy-tree"
+TREE_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/io.github.shrobin13.omarchy-tree"
 
 # Color helpers
 RED='\033[0;31m'
@@ -92,6 +94,7 @@ install_item "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
 install_item "$DOTFILES_DIR/.zfunc/_download" "$HOME/.zfunc/_download"
 install_item "$DOTFILES_DIR/.config/hypr" "$HOME/.config/hypr"
 install_item "$NOTIFICATION_PLUGIN" "$NOTIFICATION_PLUGIN_TARGET"
+install_item "$TREE_PLUGIN" "$TREE_PLUGIN_TARGET"
 
 # Ensure scripts have execute permissions
 chmod +x "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
@@ -102,6 +105,8 @@ if command -v omarchy >/dev/null 2>&1; then
   info "Enabling Omarchy shell plugin user.notification-center..."
   omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
   omarchy plugin enable user.notification-center --section right --before omarchy.power >/dev/null 2>&1 || true
+  info "Enabling Omarchy shell plugin io.github.shrobin13.omarchy-tree..."
+  omarchy plugin enable io.github.shrobin13.omarchy-tree >/dev/null 2>&1 || true
 fi
 
 # 2. Check for required & recommended CLI tools
