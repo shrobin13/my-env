@@ -6,6 +6,10 @@
 
 **Notification Center** (`user.notification-center`) is a feature-packed, SwayNC-inspired notification hub and quick settings control panel designed specifically for the [Omarchy](https://omarchy.org/) desktop shell (`omarchy-shell`).
 
+<p align="center">
+  <img src="assets/preview.png" alt="Notification Center Preview" width="850">
+</p>
+
 ---
 
 ## What It Is
@@ -153,6 +157,8 @@ python3 manage.py clear
 
 ```
 user.notification-center/
+├── assets/
+│   └── preview.png            # Plugin screenshot / preview
 ├── manifest.json              # Plugin manifest (bar-widget entry point & schema)
 ├── Panel.qml                  # Bar widget pill, unread counter badge, and IPC
 ├── NotificationPanel.qml      # Main slide-out drawer panel with quick toggles

@@ -6,6 +6,10 @@
 
 **Global Window Tree** (`io.github.shrobin13.global-window-tree`) is a fast, keyboard-driven modal overlay for [Omarchy](https://omarchy.org/) Linux and Hyprland. It presents every window across all connected monitors and workspaces in an intuitive hierarchical tree (`Monitor → Workspace → Window`), enabling instant navigation, fuzzy filtering, and single-keystroke window switching.
 
+<p align="center">
+  <img src="assets/preview.png" alt="Global Window Tree Preview" width="850">
+</p>
+
 ---
 ![Preview of window tree](asssets/preview.png)
 
@@ -150,6 +154,8 @@ io.github.shrobin13.global-window-tree/
 ├── GlobalWindowTree.qml       # Main Quickshell overlay entry point
 ├── Model.js                   # Hyprland IPC snapshot parser & data normalizer
 ├── Tree.js                    # Tree state machine, row flattener, and search
+├── assets/
+│   └── preview.png            # Plugin screenshot / preview
 ├── components/
 │   ├── AppIcon.qml            # Client icon loader from desktop themes
 │   ├── Elbow.qml              # Shape-drawn connector elbow
