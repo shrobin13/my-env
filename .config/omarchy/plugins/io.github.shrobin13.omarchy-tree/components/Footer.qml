@@ -66,13 +66,15 @@ Item {
       }
     }
 
-    KeyHint { keyText: "j k"; labelText: "move" }
-    KeyHint { keyText: "h l"; labelText: "fold" }
+    KeyHint { visible: !footerRoot.isSearching; keyText: "j k"; labelText: "move" }
+    KeyHint { visible: !footerRoot.isSearching; keyText: "h l"; labelText: "fold" }
+    KeyHint { visible: footerRoot.isSearching; keyText: "n N"; labelText: "next/prev" }
     KeyHint { keyText: "ctrl+h/l"; labelText: "monitor" }
-    KeyHint { keyText: "1–0"; labelText: "workspace" }
-    KeyHint { keyText: "/"; labelText: "search" }
+    KeyHint { visible: !footerRoot.isSearching; keyText: "1–0"; labelText: "workspace" }
+    KeyHint { keyText: "/"; labelText: footerRoot.isSearching ? "edit" : "search" }
     KeyHint { keyText: "enter"; labelText: "jump" }
-    KeyHint { keyText: "q"; labelText: "quit" }
+    KeyHint { visible: footerRoot.isSearching; keyText: "esc"; labelText: "clear" }
+    KeyHint { visible: !footerRoot.isSearching; keyText: "q"; labelText: "quit" }
   }
 
   // Summary on right

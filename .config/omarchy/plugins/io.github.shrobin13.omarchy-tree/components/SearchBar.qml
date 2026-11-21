@@ -12,6 +12,8 @@ Rectangle {
   signal searchActivated()
   signal searchEscaped()
   signal searchSubmitted()
+  signal nextMatchRequested()
+  signal prevMatchRequested()
 
   width: parent.width
   height: 44
@@ -26,6 +28,13 @@ Rectangle {
 
   function forceFocus() {
     inputField.forceActiveFocus()
+    inputField.cursorPosition = inputField.text.length
+  }
+
+  onSearchTextChanged: {
+    if (inputField.text !== searchText) {
+      inputField.text = searchText
+    }
   }
 
   Row {
@@ -90,6 +99,15 @@ Rectangle {
         font.family: "monospace"
       }
 
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        visible: !searchBarRoot.searchMode && searchBarRoot.searchText.length > 0
+        text: searchBarRoot.searchText
+        color: Color.foreground
+        font.pixelSize: 14
+        font.family: "monospace"
+      }
+
       TextInput {
         id: inputField
         anchors.fill: parent
@@ -113,6 +131,12 @@ Rectangle {
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             searchBarRoot.searchSubmitted()
             event.accepted = true
+          } else if (event.key === Qt.Key_Down || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) {
+            searchBarRoot.nextMatchRequested()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) || event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+            searchBarRoot.prevMatchRequested()
+            event.accepted = true
           }
         }
       }
@@ -124,7 +148,7 @@ Rectangle {
       width: matchCountText.implicitWidth
       height: parent.height
       anchors.verticalCenter: parent.verticalCenter
-      visible: searchBarRoot.searchMode && searchBarRoot.searchText.length > 0
+      visible: searchBarRoot.searchText.length > 0
 
       Text {
         id: matchCountText

@@ -111,4 +111,24 @@ assert.strictEqual(state.rows[state.cursor].monitor, "eDP-1", "U14: prevMonitor 
 context.nextMonitor(state);
 assert.strictEqual(state.rows[state.cursor].monitor, "HDMI-A-1", "U14: nextMonitor from eDP-1 jumps to HDMI-A-1");
 
-console.log("tree tests (U7-U12, U14) passed");
+// U15: Vim-inspired nextMatch and prevMatch navigation
+state.search = "chrome";
+state.rows = context.flatten(model, state.folds, state.search);
+state.cursor = context.firstSelectable(state);
+const firstMatchCursor = state.cursor;
+assert(state.rows[firstMatchCursor].matched, "U15: starts on first match");
+assert.strictEqual(state.rows[firstMatchCursor].kind, "window", "U15: search lands on matching window");
+
+const matchCount = state.rows.filter(r => r.matched && r.selectable && r.kind === "window").length;
+assert(matchCount > 1, "U15: multiple chrome windows in fixture");
+if (matchCount > 1) {
+  context.nextMatch(state);
+  assert.notStrictEqual(state.cursor, firstMatchCursor, "U15: nextMatch moved to next match");
+  assert.strictEqual(state.rows[state.cursor].kind, "window", "U15: nextMatch lands on window row");
+  assert(state.rows[state.cursor].matched, "U15: nextMatch lands on matched row");
+  
+  context.prevMatch(state);
+  assert.strictEqual(state.cursor, firstMatchCursor, "U15: prevMatch returned to first match");
+}
+
+console.log("tree tests (U7-U12, U14, U15) passed");

@@ -43,9 +43,10 @@ The overlay is fully functional without this rule (renders with dark translucent
 | `l` | Unfold workspace (or move to first window if already unfolded) |
 | `1`–`0` | Move cursor to workspace header on current monitor (flashes if empty) |
 | `Tab` | Jump to first selectable row on the next monitor |
-| `/` | Enter search filter mode |
-| `Enter` | Focus selected window or workspace's active window |
-| `q` / `Esc` | Close overlay (or exit search filter) |
+| `/` | Enter search filter mode (or edit query if already searching) |
+| `n` / `N` | Jump to next / previous search match (in normal mode) |
+| `Enter` | Focus selected window or workspace's active window (or submit search query to normal mode) |
+| `q` / `Esc` | Close overlay (or exit / clear search filter) |
 
 ## Accessibility & Modes
 

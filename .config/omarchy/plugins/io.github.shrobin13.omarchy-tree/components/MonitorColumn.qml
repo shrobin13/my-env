@@ -24,271 +24,218 @@ Item {
     return Qt.hsva(h, Math.min(1.0, c.hsvSaturation * 1.05), c.hsvValue, 1.0)
   }
 
-  // Card container representing the monitor window
-  Rectangle {
-    id: cardBg
-    anchors.fill: parent
-    radius: 18
-    color: isCurrentMonitor
-      ? Qt.rgba(255, 255, 255, 0.04)
-      : Qt.rgba(255, 255, 255, 0.018)
+  // Header section (pinned at top)
+  Item {
+    id: headerSection
+    anchors.top: parent.top
+    anchors.left: parent.left
+    anchors.right: parent.right
+    height: 48
 
-    border.width: isCurrentMonitor ? 1.5 : 1
-    border.color: isCurrentMonitor
-      ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.45)
-      : Qt.rgba(255, 255, 255, 0.08)
-
-    Behavior on border.color { ColorAnimation { duration: 140 } }
-    Behavior on color { ColorAnimation { duration: 140 } }
-
-    // Header section pinned at the top
-    Item {
-      id: headerSection
+    // Row with dot, monitor name, and meta
+    Row {
+      id: titleRow
       anchors.top: parent.top
       anchors.left: parent.left
-      anchors.right: parent.right
-      height: 52
+      spacing: 12
+      height: 28
 
+      // 14x14 dot
       Item {
-        anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
+        width: 14
+        height: 14
+        anchors.verticalCenter: parent.verticalCenter
 
-        // Left: Dot + Monitor name + meta
-        Column {
-          anchors.left: parent.left
-          anchors.verticalCenter: parent.verticalCenter
-          spacing: 2
-
-          Row {
-            spacing: 10
-
-            // 12x12 dot
-            Item {
-              width: 12
-              height: 12
-              anchors.verticalCenter: parent.verticalCenter
-
-              Rectangle {
-                anchors.centerIn: parent
-                width: 12
-                height: 12
-                radius: 6
-                color: (colRoot.rootData && colRoot.rootData.focused)
-                  ? colRoot.monitorAccent
-                  : "transparent"
-                border.width: 2
-                border.color: colRoot.monitorAccent
-              }
-
-              // Focused glow
-              Rectangle {
-                anchors.centerIn: parent
-                width: 18
-                height: 18
-                radius: 9
-                visible: colRoot.rootData && colRoot.rootData.focused
-                color: "transparent"
-                border.width: 1.5
-                border.color: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.3)
-              }
-            }
-
-            Text {
-              textFormat: Text.PlainText
-              text: colRoot.rootData ? colRoot.rootData.monitor : ""
-              font.pixelSize: 15
-              font.weight: 600
-              font.family: "sans-serif"
-              color: Color.foreground
-              anchors.verticalCenter: parent.verticalCenter
-            }
-          }
-
-          // Monitor Meta text: primary · 2560x1440 · focused
-          Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 22
-            textFormat: Text.PlainText
-            text: {
-              if (!colRoot.rootData) return ""
-              var isPri = colRoot.rootData.focused
-              var res = colRoot.rootData.width + "×" + colRoot.rootData.height
-              return (isPri ? "primary · " : "secondary · ") + res + (isPri ? " · focused" : "")
-            }
-            font.pixelSize: 11
-            font.family: "sans-serif"
-            color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.5)
-          }
+        Rectangle {
+          id: dotRect
+          anchors.centerIn: parent
+          width: 14
+          height: 14
+          radius: 7
+          color: (colRoot.rootData && colRoot.rootData.focused)
+            ? colRoot.monitorAccent
+            : "transparent"
+          border.width: 2
+          border.color: colRoot.monitorAccent
         }
 
-        // Right side: Active / Jump shortcut badge
+        // Focused glow
         Rectangle {
-          anchors.right: parent.right
-          anchors.verticalCenter: parent.verticalCenter
+          anchors.centerIn: parent
+          width: 22
           height: 22
-          width: shortcutRow.implicitWidth + 14
           radius: 11
-          color: isCurrentMonitor
-            ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.16)
-            : Qt.rgba(255, 255, 255, 0.05)
-          border.width: 1
-          border.color: isCurrentMonitor
-            ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.4)
-            : Qt.rgba(255, 255, 255, 0.08)
-
-          Row {
-            id: shortcutRow
-            anchors.centerIn: parent
-            spacing: 5
-
-            Text {
-              text: isCurrentMonitor ? "active" : ("mon " + (colRoot.monitorIndex + 1))
-              font.pixelSize: 11
-              font.weight: 500
-              font.family: "sans-serif"
-              color: isCurrentMonitor
-                ? colRoot.monitorAccent
-                : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-              anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Rectangle {
-              width: 1
-              height: 10
-              color: Qt.rgba(255, 255, 255, 0.15)
-              anchors.verticalCenter: parent.verticalCenter
-            }
-
-            Text {
-              text: colRoot.monitorIndex === 0 ? "^h" : "^l"
-              font.pixelSize: 10
-              font.weight: 600
-              font.family: "monospace"
-              color: isCurrentMonitor
-                ? colRoot.monitorAccent
-                : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.65)
-              anchors.verticalCenter: parent.verticalCenter
-            }
-          }
+          visible: colRoot.rootData && colRoot.rootData.focused
+          color: "transparent"
+          border.width: 2
+          border.color: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.25)
         }
       }
 
-      // Divider below header
+      Text {
+        textFormat: Text.PlainText
+        text: colRoot.rootData ? colRoot.rootData.monitor : ""
+        font.pixelSize: 16
+        font.weight: 600
+        font.family: "sans-serif"
+        color: isCurrentMonitor ? Color.foreground : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
+        anchors.verticalCenter: parent.verticalCenter
+      }
+
+      // Small shortcut badge (^h / ^l)
       Rectangle {
-        anchors.bottom: parent.bottom
+        anchors.verticalCenter: parent.verticalCenter
+        height: 18
+        width: shortcutText.implicitWidth + 10
+        radius: 9
+        color: isCurrentMonitor
+          ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.18)
+          : Qt.rgba(255, 255, 255, 0.06)
+
+        Text {
+          id: shortcutText
+          anchors.centerIn: parent
+          text: colRoot.monitorIndex === 0 ? "Ctrl+h" : "Ctrl+l"
+          font.pixelSize: 10
+          font.weight: 500
+          font.family: "monospace"
+          color: isCurrentMonitor
+            ? colRoot.monitorAccent
+            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+        }
+      }
+    }
+
+    // Monitor Meta text: primary · 2560x1440 · focused
+    Text {
+      id: metaText
+      anchors.top: titleRow.bottom
+      anchors.topMargin: 2
+      anchors.left: parent.left
+      anchors.leftMargin: 26
+      textFormat: Text.PlainText
+      text: {
+        if (!colRoot.rootData) return ""
+        var isPri = colRoot.rootData.focused
+        var res = colRoot.rootData.width + "×" + colRoot.rootData.height
+        return (isPri ? "primary · " : "secondary · ") + res + (isPri ? " · focused" : "")
+      }
+      font.pixelSize: 12
+      font.family: "sans-serif"
+      color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.5)
+    }
+
+    // Spine connector line directly under the monitor header
+    Rectangle {
+      x: 6
+      anchors.top: titleRow.bottom
+      anchors.bottom: parent.bottom
+      width: 2
+      color: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.7)
+    }
+  }
+
+  // Workspaces Scrollable Area
+  Flickable {
+    id: workspacesFlickable
+    anchors.top: headerSection.bottom
+    anchors.bottom: parent.bottom
+    anchors.left: parent.left
+    anchors.right: parent.right
+    anchors.topMargin: 2
+    clip: true
+
+    contentWidth: width
+    contentHeight: workspacesColumn.height + 16
+    boundsBehavior: Flickable.StopAtBounds
+
+    Behavior on contentY {
+      NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+    }
+
+    Item {
+      width: parent.width
+      height: workspacesColumn.height + 8
+
+      // Main fading vertical spine along the left side
+      Spine {
+        x: 6
+        y: 0
+        height: Math.max(0, workspacesColumn.height - 24)
+        topColor: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.7)
+        bottomColor: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.1)
+      }
+
+      Column {
+        id: workspacesColumn
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 1
-        color: Qt.rgba(255, 255, 255, 0.06)
-      }
-    }
+        spacing: 6
 
-    // Workspaces Scrollable Area
-    Flickable {
-      id: workspacesFlickable
-      anchors.top: headerSection.bottom
-      anchors.bottom: parent.bottom
-      anchors.left: parent.left
-      anchors.right: parent.right
-      anchors.topMargin: 6
-      anchors.bottomMargin: 8
-      anchors.leftMargin: 8
-      anchors.rightMargin: 8
-      clip: true
+        Repeater {
+          id: wsRepeater
+          model: colRoot.rootData ? colRoot.rootData.workspaces : []
 
-      contentWidth: width
-      contentHeight: workspacesColumn.height + 12
-      boundsBehavior: Flickable.StopAtBounds
+          WorkspaceNode {
+            required property var modelData
+            required property int index
 
-      Behavior on contentY {
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
-      }
+            workspaceData: modelData
+            monitorName: colRoot.rootData ? colRoot.rootData.monitor : ""
+            monitorAccent: colRoot.monitorAccent
 
-      Item {
-        width: parent.width
-        height: workspacesColumn.height + 8
+            readonly property string foldKey1: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
+            readonly property string foldKey2: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.id + ":" + modelData.number
+            isFolded: Boolean(colRoot.folds && (colRoot.folds[foldKey1] === true || colRoot.folds[foldKey2] === true))
 
-        // Main fading vertical spine along the left side
-        Spine {
-          x: 6
-          y: 0
-          height: Math.max(0, workspacesColumn.height - 24)
-          topColor: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.7)
-          bottomColor: Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.1)
-        }
+            readonly property string wsKey: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
+            isFlashed: colRoot.flashedKey === wsKey
 
-        Column {
-          id: workspacesColumn
-          anchors.left: parent.left
-          anchors.right: parent.right
-          spacing: 6
+            isSelected: colRoot.cursorRow
+              && colRoot.cursorRow.kind === "workspace"
+              && colRoot.cursorRow.monitor === (colRoot.rootData ? colRoot.rootData.monitor : "")
+              && colRoot.cursorRow.workspace.number === modelData.number
 
-          Repeater {
-            id: wsRepeater
-            model: colRoot.rootData ? colRoot.rootData.workspaces : []
+            selectedAddress: (colRoot.cursorRow && colRoot.cursorRow.kind === "window" && colRoot.cursorRow.window)
+              ? colRoot.cursorRow.window.address
+              : ""
 
-            WorkspaceNode {
-              required property var modelData
-              required property int index
+            isSearching: colRoot.isSearching
+            searchQuery: colRoot.searchQuery
 
-              workspaceData: modelData
-              monitorName: colRoot.rootData ? colRoot.rootData.monitor : ""
-              monitorAccent: colRoot.monitorAccent
+            isMatched: !colRoot.isSearching || (colRoot.searchQuery.length === 0)
+              || (String(modelData.number).indexOf(colRoot.searchQuery) >= 0)
+              || (modelData.windows.some(function(w) {
+                   return w.title.toLowerCase().indexOf(colRoot.searchQuery) >= 0
+                     || w.class.toLowerCase().indexOf(colRoot.searchQuery) >= 0
+                 }))
 
-              readonly property string foldKey1: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
-              readonly property string foldKey2: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.id + ":" + modelData.number
-              isFolded: Boolean(colRoot.folds && (colRoot.folds[foldKey1] === true || colRoot.folds[foldKey2] === true))
-
-              readonly property string wsKey: (colRoot.rootData ? colRoot.rootData.monitor : "") + ":" + modelData.number
-              isFlashed: colRoot.flashedKey === wsKey
-
-              isSelected: colRoot.cursorRow
-                && colRoot.cursorRow.kind === "workspace"
-                && colRoot.cursorRow.monitor === (colRoot.rootData ? colRoot.rootData.monitor : "")
-                && colRoot.cursorRow.workspace.number === modelData.number
-
-              selectedAddress: (colRoot.cursorRow && colRoot.cursorRow.kind === "window" && colRoot.cursorRow.window)
-                ? colRoot.cursorRow.window.address
-                : ""
-
-              isSearching: colRoot.isSearching
-              searchQuery: colRoot.searchQuery
-
-              isMatched: !colRoot.isSearching || (colRoot.searchQuery.length === 0)
-                || (String(modelData.number).indexOf(colRoot.searchQuery) >= 0)
-                || (modelData.windows.some(function(w) {
-                     return w.title.toLowerCase().indexOf(colRoot.searchQuery) >= 0
-                       || w.class.toLowerCase().indexOf(colRoot.searchQuery) >= 0
-                   }))
-
-              onHeaderClicked: colRoot.workspaceClicked(modelData)
-              onWindowClicked: function(addr) { colRoot.windowClicked(addr) }
-            }
+            onHeaderClicked: colRoot.workspaceClicked(modelData)
+            onWindowClicked: function(addr) { colRoot.windowClicked(addr) }
           }
         }
       }
     }
+  }
 
-    // Scrollbar indicator
-    Rectangle {
-      id: scrollbar
-      anchors.right: parent.right
-      anchors.rightMargin: 4
-      width: 3
-      radius: 1.5
-      visible: workspacesFlickable.contentHeight > workspacesFlickable.height
-      y: {
-        var avail = workspacesFlickable.height - height
-        var maxScroll = workspacesFlickable.contentHeight - workspacesFlickable.height
-        if (maxScroll <= 0) return headerSection.height + 6
-        return headerSection.height + 6 + (workspacesFlickable.contentY / maxScroll) * avail
-      }
-      height: Math.max(24, (workspacesFlickable.height / workspacesFlickable.contentHeight) * workspacesFlickable.height)
-      color: isCurrentMonitor
-        ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.6)
-        : Qt.rgba(255, 255, 255, 0.22)
+  // Minimal scroll indicator on the right edge
+  Rectangle {
+    id: scrollbar
+    anchors.right: parent.right
+    anchors.rightMargin: 2
+    width: 2.5
+    radius: 1.25
+    visible: workspacesFlickable.contentHeight > workspacesFlickable.height
+    y: {
+      var avail = workspacesFlickable.height - height
+      var maxScroll = workspacesFlickable.contentHeight - workspacesFlickable.height
+      if (maxScroll <= 0) return headerSection.height + 2
+      return headerSection.height + 2 + (workspacesFlickable.contentY / maxScroll) * avail
     }
+    height: Math.max(24, (workspacesFlickable.height / workspacesFlickable.contentHeight) * workspacesFlickable.height)
+    color: isCurrentMonitor
+      ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.5)
+      : Qt.rgba(255, 255, 255, 0.2)
   }
 
   function scrollToCursor() {

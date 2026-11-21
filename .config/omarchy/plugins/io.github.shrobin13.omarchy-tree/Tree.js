@@ -142,6 +142,14 @@ function move(state, delta) {
 function firstSelectable(state) {
   if (!state || !state.rows || !state.rows.length) return 0;
   var searchActive = typeof state.search === "string" && state.search.trim().length > 0;
+  if (searchActive) {
+    for (var w = 0; w < state.rows.length; w++) {
+      var rowW = state.rows[w];
+      if (rowW.kind === "window" && isRowNavigable(rowW, searchActive) && rowW.matched) {
+        return w;
+      }
+    }
+  }
   for (var i = 0; i < state.rows.length; i++) {
     if (isRowNavigable(state.rows[i], searchActive)) return i;
   }
@@ -151,6 +159,14 @@ function firstSelectable(state) {
 function lastSelectable(state) {
   if (!state || !state.rows || !state.rows.length) return 0;
   var searchActive = typeof state.search === "string" && state.search.trim().length > 0;
+  if (searchActive) {
+    for (var w = state.rows.length - 1; w >= 0; w--) {
+      var rowW = state.rows[w];
+      if (rowW.kind === "window" && isRowNavigable(rowW, searchActive) && rowW.matched) {
+        return w;
+      }
+    }
+  }
   for (var i = state.rows.length - 1; i >= 0; i--) {
     if (isRowNavigable(state.rows[i], searchActive)) return i;
   }
@@ -230,4 +246,58 @@ function jumpToMonitor(state, targetMonitor) {
       return;
     }
   }
+}
+
+function nextMatch(state) {
+  if (!state || !state.rows || !state.rows.length) return;
+  var rows = state.rows;
+  var searchActive = typeof state.search === "string" && state.search.trim().length > 0;
+  var current = state.cursor;
+  var n = rows.length;
+
+  var hasWindowMatches = false;
+  for (var k = 0; k < n; k++) {
+    if (rows[k].kind === "window" && isRowNavigable(rows[k], searchActive) && rows[k].matched) {
+      hasWindowMatches = true;
+      break;
+    }
+  }
+
+  for (var i = 1; i < n; i++) {
+    var candidate = (current + i) % n;
+    var row = rows[candidate];
+    if (isRowNavigable(row, searchActive) && row.matched) {
+      if (hasWindowMatches && row.kind !== "window") continue;
+      state.cursor = candidate;
+      return candidate;
+    }
+  }
+  return current;
+}
+
+function prevMatch(state) {
+  if (!state || !state.rows || !state.rows.length) return;
+  var rows = state.rows;
+  var searchActive = typeof state.search === "string" && state.search.trim().length > 0;
+  var current = state.cursor;
+  var n = rows.length;
+
+  var hasWindowMatches = false;
+  for (var k = 0; k < n; k++) {
+    if (rows[k].kind === "window" && isRowNavigable(rows[k], searchActive) && rows[k].matched) {
+      hasWindowMatches = true;
+      break;
+    }
+  }
+
+  for (var i = 1; i < n; i++) {
+    var candidate = (current - i + n) % n;
+    var row = rows[candidate];
+    if (isRowNavigable(row, searchActive) && row.matched) {
+      if (hasWindowMatches && row.kind !== "window") continue;
+      state.cursor = candidate;
+      return candidate;
+    }
+  }
+  return current;
 }

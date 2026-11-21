@@ -44,6 +44,7 @@ Item {
     root.loadFailed = false
     root.searchMode = false
     root.searchText = ""
+    searchBar.searchText = ""
     root.summonSerial++
     root.reload()
     Qt.callLater(function () { keyCatcher.forceActiveFocus() })
@@ -53,6 +54,7 @@ Item {
     root.opened = false
     root.searchMode = false
     root.searchText = ""
+    searchBar.searchText = ""
     root.gPending = false
     root.awaitingReply = false
   }
@@ -145,7 +147,19 @@ Item {
         cursor = Tree.initialCursor(rows, root.model)
       }
     } else {
-      cursor = Tree.firstSelectable(state)
+      var preserved = false
+      if (oldCursorAddress) {
+        for (var k = 0; k < rows.length; k++) {
+          if (rows[k].window && rows[k].window.address === oldCursorAddress && rows[k].matched) {
+            cursor = k
+            preserved = true
+            break
+          }
+        }
+      }
+      if (!preserved) {
+        cursor = Tree.firstSelectable(state)
+      }
     }
     state.cursor = cursor
     root.treeState = state
@@ -166,6 +180,20 @@ Item {
   function move(delta) {
     if (!root.treeState) return
     Tree.move(root.treeState, delta)
+    root.treeStateChanged()
+  }
+
+  function nextMatch() {
+    if (!root.treeState) return
+    Tree.nextMatch(root.treeState)
+    root.setCursor(root.treeState.cursor)
+    root.treeStateChanged()
+  }
+
+  function prevMatch() {
+    if (!root.treeState) return
+    Tree.prevMatch(root.treeState)
+    root.setCursor(root.treeState.cursor)
     root.treeStateChanged()
   }
 
@@ -349,14 +377,22 @@ Item {
     if (!root.treeState) return
     root.searchMode = true
     root.gPending = false
-    root.treeState.recordedCursor = root.treeState.cursor
+    if (root.searchText.length === 0) {
+      root.treeState.recordedCursor = root.treeState.cursor
+    }
     Qt.callLater(function () { searchBar.forceFocus() })
+  }
+
+  function submitSearch() {
+    root.searchMode = false
+    Qt.callLater(function () { keyCatcher.forceActiveFocus() })
   }
 
   // Esc in search restores recorded cursor per brief §6 & H2 fix
   function exitSearch() {
     root.searchMode = false
     root.searchText = ""
+    searchBar.searchText = ""
     if (root.treeState) {
       var restored = root.treeState.recordedCursor
       root.rebuildTree()
@@ -549,7 +585,9 @@ Item {
 
           onSearchActivated: root.enterSearch()
           onSearchEscaped: root.exitSearch()
-          onSearchSubmitted: root.focusCurrent()
+          onSearchSubmitted: root.submitSearch()
+          onNextMatchRequested: root.nextMatch()
+          onPrevMatchRequested: root.prevMatch()
           onSearchTextChanged: {
             root.searchText = searchBar.searchText
             root.rebuildTree()
@@ -588,7 +626,7 @@ Item {
                 cursorRow: root.currentRow()
                 folds: root.folded
                 flashedKey: root.flashedWorkspaceKey
-                isSearching: root.searchMode
+                isSearching: root.searchText.length > 0
                 searchQuery: root.searchText.toLowerCase()
 
                 onWorkspaceClicked: function(ws) {
@@ -611,7 +649,7 @@ Item {
             if (!root.treeState || !root.treeState.rows) return 0
             return root.treeState.rows.filter(function(r) { return r.kind === "window" && r.matched }).length
           }
-          isSearching: root.searchMode && root.searchText.length > 0
+          isSearching: root.searchText.length > 0
         }
       }
 
@@ -623,8 +661,8 @@ Item {
         Keys.priority: Keys.BeforeItem
 
         Keys.onPressed: function(event) {
-          if (event.key === Qt.Key_Escape || event.text === "q") {
-            if (root.searchMode) {
+          if (event.key === Qt.Key_Escape) {
+            if (root.searchMode || root.searchText.length > 0) {
               root.exitSearch()
             } else {
               root.close()
@@ -633,9 +671,25 @@ Item {
             return
           }
 
+          if (event.text === "q") {
+            root.close()
+            event.accepted = true
+            return
+          }
+
           if (root.searchMode) return
 
-          if (event.text === "j" || event.key === Qt.Key_Down) {
+          if (event.text === "n") {
+            if (root.searchText.length > 0) {
+              root.nextMatch()
+            }
+            event.accepted = true
+          } else if (event.text === "N") {
+            if (root.searchText.length > 0) {
+              root.prevMatch()
+            }
+            event.accepted = true
+          } else if (event.text === "j" || event.key === Qt.Key_Down) {
             root.move(1)
             event.accepted = true
           } else if (event.text === "k" || event.key === Qt.Key_Up) {
