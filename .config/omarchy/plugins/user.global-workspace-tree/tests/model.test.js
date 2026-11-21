@@ -31,4 +31,12 @@ assert.strictEqual(model.focusedAddress, "0xaaa");
 
 assert.strictEqual(context.buildSnapshot("{", workspaces, clients), null);
 
+const sequence = context.focusSequence("0xaaa", "HDMI-A-1", 11);
+assert.strictEqual(sequence.length, 3);
+assert.strictEqual(sequence[0].mode, "lua");
+assert.strictEqual(sequence[1].mode, "legacy");
+assert.strictEqual(sequence[2].mode, "fallback");
+
+assert.strictEqual(context.focusSequence("bad-address", "HDMI-A-1", 11).length, 0);
+
 console.log("model tests passed");

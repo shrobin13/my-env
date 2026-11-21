@@ -211,3 +211,28 @@ function nameForWorkspace(workspace, number) {
   var name = isObject(workspace) ? String(workspace.name || "") : "";
   return name.length > 0 ? name : String(number);
 }
+
+function isValidAddress(address) {
+  return typeof address === "string" && /^0x[0-9a-f]+$/i.test(address);
+}
+
+function focusSequence(address, monitorName, workspaceId) {
+  if (!isValidAddress(address)) return [];
+  var monitor = typeof monitorName === "string" ? monitorName : "";
+  var workspace = finiteNumber(workspaceId, 0);
+  var direct = [
+    { mode: "lua", command: ["sh", "-c",
+      'out=$(hyprctl dispatch "hl.dsp.focus({ window = \\"address:$1\\" })" 2>&1); '
+      + '[ "$out" = ok ] || hyprctl dispatch focuswindow "address:$1" >/dev/null 2>&1',
+      "omarchy-tree", address] },
+    { mode: "legacy", command: ["hyprctl", "dispatch", "focuswindow", "address:" + address] }
+  ];
+  if (!monitor || workspace <= 0) return direct;
+  return direct.concat([
+    { mode: "fallback", command: ["sh", "-c",
+      'hyprctl dispatch focusmonitor "$1" >/dev/null 2>&1 && '
+      + 'hyprctl dispatch workspace "$2" >/dev/null 2>&1 && '
+      + 'hyprctl dispatch focuswindow "address:$3" >/dev/null 2>&1',
+      "omarchy-tree", monitor, String(workspace), address] }
+  ]);
+}

@@ -13,6 +13,12 @@ Date: 2026-11-21
 - P9: `Quickshell.Hyprland` and `WlrKeyboardFocus.Exclusive` are present in the installed shell source. The overlay namespace is set through `WlrLayershell.namespace`.
 - P10: `Super+Shift+V` has no live bind. Live inventory also showed `Super+Shift+L`, `Super+Shift+T` and `Super+T` conflicts.
 
+## P5 follow-up
+
+- Direct Lua focus returned `ok`.
+- The plugin now verifies `hyprctl activewindow -j` after dispatch.
+- If the address mismatches, it runs `focusmonitor`, `workspace`, then `focuswindow address:<addr>` once before retaining the panel open and refreshing state.
+
 ## Live monitor snapshot
 
 ```text

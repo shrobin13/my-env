@@ -245,6 +245,12 @@ Item {
     flashTimer.restart()
   }
 
+  function focusFailed() {
+    root.flashWorkspace(root.pendingMonitor, 0)
+    root.pendingAddress = ""
+    root.reload()
+  }
+
   function focusCurrent() {
     var row = root.currentRow()
     if (!row) return
@@ -260,11 +266,30 @@ Item {
   }
 
   function focusAddress(address) {
-    if (!/^0x[0-9a-f]+$/i.test(String(address))) return
-    var lua = 'out=$(hyprctl dispatch "hl.dsp.focus({ window = \\"address:$1\\" })" 2>&1); '
-      + '[ "$out" = ok ] || hyprctl dispatch focuswindow "address:$1" >/dev/null 2>&1'
-    dispatchProc.command = ["sh", "-c", lua, "omarchy-tree", String(address)]
+    var row = root.currentRow()
+    var monitor = row ? row.monitor : ""
+    var workspaceId = row && row.workspace ? row.workspace.id : 0
+    if (row && row.window) workspaceId = row.window.workspaceId
+    var sequence = Model.focusSequence(address, monitor, workspaceId)
+    if (!sequence.length) return
+    root.pendingAddress = String(address)
+    root.pendingMonitor = monitor
+    root.pendingWorkspaceId = workspaceId
+    root.pendingFallbackSent = false
+    dispatchProc.command = sequence[0].command
     dispatchProc.running = true
+  }
+
+  property string pendingAddress: ""
+  property string pendingMonitor: ""
+  property int pendingWorkspaceId: 0
+  property bool pendingFallbackSent: false
+
+  Timer {
+    id: verifyFocusTimer
+    interval: 80
+    repeat: false
+    onTriggered: activeWindowProc.running = true
   }
 
   function switchWorkspace(workspaceId) {
@@ -372,7 +397,39 @@ Item {
   Process {
     id: dispatchProc
     command: ["true"]
-    onExited: root.close()
+    onExited: verifyFocusTimer.restart()
+  }
+  Process {
+    id: activeWindowProc
+    command: ["hyprctl", "activewindow", "-j"]
+    stdout: StdioCollector { id: activeWindowOut; waitForEnd: true }
+    onExited: function (exitCode, exitStatus) {
+      if (exitCode !== 0 || !root.pendingAddress) {
+        root.focusFailed()
+        return
+      }
+      try {
+        var active = JSON.parse(activeWindowOut.text)
+        if (active && active.address === root.pendingAddress) {
+          root.pendingAddress = ""
+          root.close()
+          return
+        }
+      } catch (error) {}
+      if (!root.pendingFallbackSent) {
+        root.pendingFallbackSent = true
+        var sequence = Model.focusSequence(root.pendingAddress, root.pendingMonitor, root.pendingWorkspaceId)
+        fallbackProc.command = sequence[sequence.length - 1].command
+        fallbackProc.running = true
+      } else {
+        root.focusFailed()
+      }
+    }
+  }
+  Process {
+    id: fallbackProc
+    command: ["true"]
+    onExited: verifyFocusTimer.restart()
   }
   Process {
     id: workspaceProc
