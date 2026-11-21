@@ -30,7 +30,7 @@ cd ~/Work/my-config
 | [`.p10k.zsh`](.p10k.zsh) | `~/.p10k.zsh` | Powerlevel10k theme configuration |
 | [`.config/hypr/`](.config/hypr/) | `~/.config/hypr/` | Omarchy Hyprland Lua config (bindings, monitors, look & feel, inputs) |
 | [`.config/omarchy/plugins/user.notification-center/`](.config/omarchy/plugins/user.notification-center/) | `~/.config/omarchy/plugins/user.notification-center/` | SwayNC-inspired Notification Center & Quick Controls shell plugin |
-| [`.config/omarchy/plugins/io.github.shrobin13.omarchy-tree/`](.config/omarchy/plugins/io.github.shrobin13.omarchy-tree/) | `~/.config/omarchy/plugins/io.github.shrobin13.omarchy-tree/` | Keyboard-driven cross-monitor window tree overlay |
+| [`.config/omarchy/plugins/io.github.shrobin13.global-window-tree/`](.config/omarchy/plugins/io.github.shrobin13.global-window-tree/) | `~/.config/omarchy/plugins/io.github.shrobin13.global-window-tree/` | Keyboard-driven cross-monitor window tree overlay |
 | [`bin/download`](bin/download) | `~/.local/bin/download` | High-performance `yt-dlp` frontend CLI utility |
 | [`.zfunc/_download`](.zfunc/_download) | `~/.zfunc/_download` | Autoloaded Zsh completions for `download` |
 

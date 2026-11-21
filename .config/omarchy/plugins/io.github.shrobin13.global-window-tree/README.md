@@ -55,6 +55,17 @@ Built natively for Omarchy's Quickshell environment (`omarchy-shell`), Global Wi
 
 ---
 
+## Dependencies & Prerequisites
+
+Global Window Tree is built directly on top of the native Omarchy and Hyprland desktop stack:
+- **Omarchy Quattro** (with `omarchy-shell` / Quickshell runtime)
+- **Hyprland** (Hyprland 0.56+ or IPC-compatible compositor)
+- **`hyprctl`** (standard Hyprland CLI tool for window dispatch and workspace queries)
+
+No additional external libraries, build chains, or native compilation are required (pure QML and JavaScript).
+
+---
+
 ## Installation in Omarchy
 
 ### Method 1: Using the Omarchy CLI (Recommended)
@@ -86,6 +97,32 @@ Verify that the plugin is detected:
 ```bash
 omarchy plugin list
 # You should see: io.github.shrobin13.global-window-tree
+```
+
+---
+
+## Removal & Uninstallation
+
+### Method 1: Using the Omarchy CLI (Recommended)
+
+To remove the plugin and disable it from the shell:
+
+```bash
+omarchy plugin remove io.github.shrobin13.global-window-tree --yes
+```
+
+### Method 2: Manual Removal
+
+To manually uninstall:
+
+```bash
+# Remove the plugin directory
+rm -rf ~/.config/omarchy/plugins/io.github.shrobin13.global-window-tree
+
+# Refresh the shell to unload the plugin
+omarchy-shell shell rescanPlugins
+# (Or restart the shell)
+omarchy restart shell
 ```
 
 ---
@@ -199,8 +236,13 @@ omarchy-shell -q shell hide io.github.shrobin13.global-window-tree
 
 ---
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
 ## Author
 
 - **Author:** Sheikh Robin
 - **GitHub:** [@shrobin13](https://github.com/shrobin13)
-- **License:** MIT
