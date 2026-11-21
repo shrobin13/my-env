@@ -50,18 +50,19 @@ Item {
           id: keyLabel
           anchors.centerIn: parent
           text: keyText
-          font.pixelSize: 12
-          font.weight: 500
-          font.family: "monospace"
-          color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.85)
+          font.pixelSize: Math.max(12, Style.font.bodySmall)
+          font.weight: Font.DemiBold
+          font.family: Style.font.family
+          color: Color.foreground
         }
       }
 
       Text {
         text: labelText
-        font.pixelSize: 12
-        font.family: "sans-serif"
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
+        font.pixelSize: Math.max(12, Style.font.bodySmall)
+        font.weight: Font.Normal
+        font.family: Style.font.family
+        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.8)
         anchors.verticalCenter: parent.verticalCenter
       }
     }
@@ -84,8 +85,8 @@ Item {
     text: footerRoot.isSearching
       ? (footerRoot.matchedWindows + " of " + footerRoot.totalWindows + " windows")
       : (footerRoot.totalWindows + " windows · " + footerRoot.totalMonitors + " monitors")
-    font.pixelSize: 12
-    font.family: "sans-serif"
-    color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
+    font.pixelSize: Math.max(12, Style.font.bodySmall)
+    font.family: Style.font.family
+    color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.8)
   }
 }

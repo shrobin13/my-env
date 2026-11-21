@@ -72,12 +72,12 @@ Item {
         text: windowData ? windowData.class : ""
         color: isSelected
           ? Color.foreground
-          : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.85)
-        font.pixelSize: 12
-        font.weight: 500
-        font.family: "monospace"
+          : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.95)
+        font.pixelSize: Math.max(12, Style.font.bodySmall)
+        font.weight: Font.DemiBold
+        font.family: Style.font.family
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(72, implicitWidth)
+        width: Math.max(76, implicitWidth)
       }
 
       Text {
@@ -86,10 +86,10 @@ Item {
         textFormat: Text.PlainText
         color: isSelected
           ? Color.foreground
-          : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-        font.pixelSize: 13
-        font.weight: 400
-        font.family: "monospace"
+          : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.85)
+        font.pixelSize: Math.max(13, Style.font.body)
+        font.weight: Font.Normal
+        font.family: Style.font.family
         elide: Text.ElideRight
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width - appIcon.width - classText.width - (curDot.visible ? 28 : 10) - 20

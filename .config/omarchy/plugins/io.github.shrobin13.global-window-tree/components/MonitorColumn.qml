@@ -75,33 +75,33 @@ Item {
       Text {
         textFormat: Text.PlainText
         text: colRoot.rootData ? colRoot.rootData.monitor : ""
-        font.pixelSize: 16
-        font.weight: 600
-        font.family: "sans-serif"
-        color: isCurrentMonitor ? Color.foreground : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
+        font.pixelSize: Math.max(16, Style.font.heading)
+        font.weight: Font.Bold
+        font.family: Style.font.family
+        color: isCurrentMonitor ? Color.foreground : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.9)
         anchors.verticalCenter: parent.verticalCenter
       }
 
       // Small shortcut badge (^h / ^l)
       Rectangle {
         anchors.verticalCenter: parent.verticalCenter
-        height: 18
-        width: shortcutText.implicitWidth + 10
-        radius: 9
+        height: 20
+        width: shortcutText.implicitWidth + 12
+        radius: 10
         color: isCurrentMonitor
-          ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.18)
-          : Qt.rgba(255, 255, 255, 0.06)
+          ? Qt.rgba(colRoot.monitorAccent.r, colRoot.monitorAccent.g, colRoot.monitorAccent.b, 0.22)
+          : Qt.rgba(255, 255, 255, 0.08)
 
         Text {
           id: shortcutText
           anchors.centerIn: parent
           text: colRoot.monitorIndex === 0 ? "Ctrl+h" : "Ctrl+l"
-          font.pixelSize: 10
-          font.weight: 500
-          font.family: "monospace"
+          font.pixelSize: Math.max(11, Style.font.caption)
+          font.weight: Font.DemiBold
+          font.family: Style.font.family
           color: isCurrentMonitor
             ? colRoot.monitorAccent
-            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
         }
       }
     }
@@ -120,9 +120,10 @@ Item {
         var res = colRoot.rootData.width + "×" + colRoot.rootData.height
         return (isPri ? "primary · " : "secondary · ") + res + (isPri ? " · focused" : "")
       }
-      font.pixelSize: 12
-      font.family: "sans-serif"
-      color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.5)
+      font.pixelSize: Math.max(12, Style.font.bodySmall)
+      font.weight: Font.Normal
+      font.family: Style.font.family
+      color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
     }
 
     // Spine connector line directly under the monitor header

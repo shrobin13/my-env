@@ -44,7 +44,7 @@ hl.config({
 -- Mouse speed knob for the 2.4G mouse
 -- 1.0 = current feel, 1.2 = 20% faster, 0.8 = 20% slower
 -- ============================================================
-local mouse_speed = 1.0
+local mouse_speed = 1.2
 
 -- Base curve (generated with accel.py, then scaled to taste)
 -- step = spacing between points, points = pointer multiplier at each speed

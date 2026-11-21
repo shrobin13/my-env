@@ -43,9 +43,9 @@ Item {
     Text {
       anchors.centerIn: parent
       text: (iconRoot.appClass ? iconRoot.appClass.substring(0, 2).toUpperCase() : "??")
-      font.pixelSize: 8
-      font.weight: 600
-      font.family: "monospace"
+      font.pixelSize: 9
+      font.weight: Font.Bold
+      font.family: Style.font.family
       color: iconRoot.accentColor
     }
   }

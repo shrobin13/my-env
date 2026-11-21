@@ -76,9 +76,9 @@ Rectangle {
     Text {
       textFormat: Text.PlainText
       text: "/"
-      font.pixelSize: 15
-      font.weight: 600
-      font.family: "monospace"
+      font.pixelSize: Math.max(16, Style.font.heading)
+      font.weight: Font.Bold
+      font.family: Style.font.family
       color: searchBarRoot.accentColor
       anchors.verticalCenter: parent.verticalCenter
     }
@@ -94,9 +94,9 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         visible: !searchBarRoot.searchMode && searchBarRoot.searchText.length === 0
         text: "filter windows"
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-        font.pixelSize: 14
-        font.family: "monospace"
+        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.65)
+        font.pixelSize: Math.max(14, Style.font.title)
+        font.family: Style.font.family
       }
 
       Text {
@@ -104,8 +104,9 @@ Rectangle {
         visible: !searchBarRoot.searchMode && searchBarRoot.searchText.length > 0
         text: searchBarRoot.searchText
         color: Color.foreground
-        font.pixelSize: 14
-        font.family: "monospace"
+        font.pixelSize: Math.max(14, Style.font.title)
+        font.weight: Font.Medium
+        font.family: Style.font.family
       }
 
       TextInput {
@@ -115,8 +116,9 @@ Rectangle {
         visible: searchBarRoot.searchMode
         text: searchBarRoot.searchText
         color: Color.foreground
-        font.pixelSize: 14
-        font.family: "monospace"
+        font.pixelSize: Math.max(14, Style.font.title)
+        font.weight: Font.Medium
+        font.family: Style.font.family
         clip: true
         activeFocusOnTab: false
 
@@ -154,9 +156,9 @@ Rectangle {
         id: matchCountText
         anchors.verticalCenter: parent.verticalCenter
         text: searchBarRoot.matchCount === 1 ? "1 match" : (searchBarRoot.matchCount + " matches")
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-        font.pixelSize: 12
-        font.family: "sans-serif"
+        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.8)
+        font.pixelSize: Math.max(12, Style.font.bodySmall)
+        font.family: Style.font.family
       }
     }
 
@@ -173,10 +175,10 @@ Rectangle {
         id: escText
         anchors.centerIn: parent
         text: "esc"
-        font.pixelSize: 11
-        font.weight: 500
-        font.family: "monospace"
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
+        font.pixelSize: Math.max(11, Style.font.caption)
+        font.weight: Font.DemiBold
+        font.family: Style.font.family
+        color: Color.foreground
       }
     }
   }

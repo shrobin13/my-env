@@ -107,12 +107,12 @@ Item {
         Text {
           anchors.centerIn: parent
           text: wsNodeRoot.workspaceData ? String(wsNodeRoot.workspaceData.number) : ""
-          font.pixelSize: 12
-          font.weight: 600
-          font.family: "monospace"
+          font.pixelSize: Math.max(12, Style.font.body)
+          font.weight: Font.Bold
+          font.family: Style.font.family
           color: wsNodeRoot.hasWindows
             ? Color.foreground
-            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.5)
+            : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.65)
         }
       }
 
@@ -120,9 +120,12 @@ Item {
       Text {
         text: wsNodeRoot.workspaceData ? wsNodeRoot.workspaceData.label : ""
         textFormat: Text.PlainText
-        font.pixelSize: 13
-        font.family: "monospace"
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
+        font.pixelSize: Math.max(13, Style.font.body)
+        font.weight: Font.Medium
+        font.family: Style.font.family
+        color: wsNodeRoot.hasWindows
+          ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.85)
+          : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
         elide: Text.ElideRight
         anchors.verticalCenter: parent.verticalCenter
         width: parent.width - 22 - 9 - 30 - 40 - (chevron.visible ? 18 : 0)
@@ -131,9 +134,10 @@ Item {
       // Window count badge
       Text {
         text: String(wsNodeRoot.windowCount)
-        font.pixelSize: 12
-        font.family: "monospace"
-        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.45)
+        font.pixelSize: Math.max(12, Style.font.bodySmall)
+        font.weight: Font.DemiBold
+        font.family: Style.font.family
+        color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
         anchors.verticalCenter: parent.verticalCenter
       }
 
@@ -148,7 +152,7 @@ Item {
         onPaint: {
           var ctx = getContext("2d")
           ctx.reset()
-          ctx.strokeStyle = Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
+          ctx.strokeStyle = Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.75)
           ctx.lineWidth = 1.4
           ctx.lineCap = "round"
           ctx.lineJoin = "round"
