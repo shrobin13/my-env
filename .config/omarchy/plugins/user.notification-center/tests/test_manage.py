@@ -38,6 +38,8 @@ def test_delete_keys_removes_history_and_live_entries():
         assert "deleted 1 keys" in result.stdout
         assert json.loads(history.read_text()) == [{"key": "keep"}]
         assert json.loads(live.read_text()) == [{"key": "live"}]
+        saved_state = json.loads(user_state.read_text())
+        assert saved_state["deletedKeys"].get("old") is True
 
 
 def test_clear_removes_history_and_live_entries():
@@ -77,6 +79,8 @@ def test_clear_removes_history_and_live_entries():
         assert json.loads(live.read_text()) == []
         saved_state = json.loads(user_state.read_text())
         assert saved_state["clearedBefore"] >= cutoff
+        assert saved_state["deletedKeys"].get("old-history") is True
+        assert saved_state["deletedKeys"].get("old-live") is True
 
 
 if __name__ == "__main__":

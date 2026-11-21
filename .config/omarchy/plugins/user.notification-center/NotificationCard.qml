@@ -288,6 +288,7 @@ Item {
       cursorShape: Qt.PointingHandCursor
       onClicked: {
         cardRoot.selectRequested()
+        cardRoot.runPrimaryAction()
       }
     }
 

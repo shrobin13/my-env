@@ -54,24 +54,35 @@ def prune_user_state(keys_to_remove):
         print(f"error-prune-state: {e}", file=sys.stderr)
 
 def clear_all():
-    cutoff = int(time.time())
-    # First make the persisted store empty so the notification plugin cannot
-    # render a stale row while the daemon is clearing its in-memory cards.
+    cutoff = int(time.time()) + 2
+
+    # Collect all keys currently in history and live so they are recorded as deleted
+    deleted_keys = set()
+    for path in (HISTORY_FILE, LIVE_FILE):
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                items = json.load(f)
+            if isinstance(items, list):
+                deleted_keys.update(
+                    item.get("key") for item in items
+                    if isinstance(item, dict) and item.get("key")
+                )
+        except Exception as e:
+            print(f"error-read-clear-keys: {e}", file=sys.stderr)
+
+    # Empty the persisted files so the notification plugin cannot render stale cards
     atomic_write_json(HISTORY_FILE, [])
     atomic_write_json(LIVE_FILE, [])
 
-    # Dismiss live cards.  This also moves them through the daemon's normal
-    # close path, then the two-file store is cleared again after its save
-    # debounce has flushed.
+    # Dismiss live cards from screen
     try:
         subprocess.run(["omarchy-shell", "notifications", "dismissAll"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
-    time.sleep(1.0)
-    atomic_write_json(HISTORY_FILE, [])
-    atomic_write_json(LIVE_FILE, [])
 
-    # Clear keys from user state
+    # Clear volatile state but record clearedBefore AND deletedKeys into user-state.json
     if os.path.isfile(USER_STATE_FILE):
         try:
             with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
@@ -80,17 +91,14 @@ def clear_all():
                 s["pinned"] = {}
                 s["snoozed"] = {}
                 s["readKeys"] = {}
-                s["clearedBefore"] = int(time.time())
-                s["deletedKeys"] = {}
+                s["clearedBefore"] = cutoff
+                deleted = s.get("deletedKeys")
+                if not isinstance(deleted, dict):
+                    deleted = {}
+                for key in deleted_keys:
+                    deleted[key] = True
+                s["deletedKeys"] = deleted
                 atomic_write_json(USER_STATE_FILE, s)
-        except Exception:
-            pass
-
-    # The daemon keeps history in memory.  Restarting the shell discards that
-    # stale in-memory history after the files have been cleared.
-    if not os.environ.get("OMARCHY_TESTING"):
-        try:
-            subprocess.run(["omarchy", "restart", "shell"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             pass
 
@@ -121,6 +129,22 @@ def delete_keys(keys):
                     atomic_write_json(path, filtered)
         except Exception as e:
             print(f"error-delete-keys: {e}", file=sys.stderr)
+
+    # Persist deleted keys into user-state.json so they never reappear even if daemon flushes old history
+    if os.path.isfile(USER_STATE_FILE):
+        try:
+            with open(USER_STATE_FILE, "r", encoding="utf-8") as f:
+                s = json.load(f)
+            if isinstance(s, dict):
+                deleted = s.get("deletedKeys")
+                if not isinstance(deleted, dict):
+                    deleted = {}
+                for k in key_set:
+                    deleted[k] = True
+                s["deletedKeys"] = deleted
+                atomic_write_json(USER_STATE_FILE, s)
+        except Exception as e:
+            print(f"error-record-deleted: {e}", file=sys.stderr)
 
     prune_user_state(key_set)
     print(f"deleted {len(key_set)} keys")

@@ -307,6 +307,17 @@ Item {
       }
       panelRoot.userState[field] = values
     }
+    // Cap deletedKeys if it grows beyond 500 entries to prevent state file bloat
+    var dk = panelRoot.userState.deletedKeys || {}
+    var dkKeys = Object.keys(dk)
+    if (dkKeys.length > 500) {
+      var trimmed = {}
+      for (var t = dkKeys.length - 300; t < dkKeys.length; t++) {
+        trimmed[dkKeys[t]] = true
+      }
+      panelRoot.userState.deletedKeys = trimmed
+      changed = true
+    }
     if (changed) panelRoot.saveState()
   }
 
@@ -380,15 +391,6 @@ Item {
   onRawNotificationsChanged: {
     panelRoot.rawNotificationsLoaded = true
     panelRoot.pruneUserState()
-    var stillPresent = {}
-    for (var r = 0; r < panelRoot.rawNotifications.length; r++) {
-      if (panelRoot.rawNotifications[r] && panelRoot.rawNotifications[r].key) stillPresent[panelRoot.rawNotifications[r].key] = true
-    }
-    var committed = Object.assign({}, panelRoot.committedDeletes)
-    for (var committedKey in committed) {
-      if (!stillPresent[committedKey]) delete committed[committedKey]
-    }
-    panelRoot.committedDeletes = committed
     if (panelOpened) {
       // Add any newly arrived unread notifications to snapshot so they don't vanish immediately
       for (var i = 0; i < panelRoot.rawNotifications.length; i++) {
@@ -455,11 +457,18 @@ Item {
 
     panelRoot.pendingDeletes = newDeletes
     panelRoot.pendingDeletesMap = newMap
-    if (toClear.length === panelRoot.filteredList.length) {
-      panelRoot.userState.clearedBefore = Math.floor(Date.now() / 1000)
+
+    var isClearAll = (panelRoot.activeFilter === "All" && panelRoot.searchQuery === "")
+    if (isClearAll) {
+      panelRoot.userState.clearedBefore = Math.floor(Date.now() / 1000) + 2
+      panelRoot.userStateChanged()
+      panelRoot.saveState()
     }
 
-    panelRoot.commitPendingDeletes()
+    panelRoot.undoMessage = strings.tn("notificationsCleared", toClear.length).arg(toClear.length)
+    panelRoot.undoAction = isClearAll ? "clear" : "delete"
+    panelRoot.undoVisible = true
+    undoTimer.restart()
   }
 
   function commitPendingDeletes() {
@@ -469,16 +478,23 @@ Item {
       return
     }
     var keys = panelRoot.pendingDeletes.slice()
+    var isClearAll = (panelRoot.undoAction === "clear") || (panelRoot.activeFilter === "All" && panelRoot.searchQuery === "") || (keys.length >= panelRoot.rawNotifications.length)
     var committed = Object.assign({}, panelRoot.committedDeletes)
     var deleted = Object.assign({}, panelRoot.userState.deletedKeys || {})
-    for (var i = 0; i < keys.length; i++) committed[keys[i]] = true
-    for (var j = 0; j < keys.length; j++) deleted[keys[j]] = true
+    for (var i = 0; i < keys.length; i++) {
+      committed[keys[i]] = true
+      deleted[keys[i]] = true
+    }
     panelRoot.committedDeletes = committed
     panelRoot.userState.deletedKeys = deleted
+    if (isClearAll) {
+      panelRoot.userState.clearedBefore = Math.max(Number(panelRoot.userState.clearedBefore || 0), Math.floor(Date.now() / 1000) + 2)
+    }
     panelRoot.userStateChanged()
     panelRoot.saveState()
+
     var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
-    if (keys.length === panelRoot.rawNotifications.length) {
+    if (isClearAll) {
       Quickshell.execDetached(["python3", script, "clear"])
     } else {
       for (var offset = 0; offset < keys.length; offset += 50) {
@@ -488,11 +504,19 @@ Item {
     panelRoot.pendingDeletes = []
     panelRoot.pendingDeletesMap = ({})
     panelRoot.undoVisible = false
+    panelRoot.undoAction = ""
     undoTimer.stop()
   }
 
   function performUndo() {
-    if (panelRoot.undoAction.indexOf("mute:") === 0) {
+    if (panelRoot.undoAction === "clear") {
+      panelRoot.userState.clearedBefore = 0
+      panelRoot.userStateChanged()
+      panelRoot.saveState()
+      panelRoot.pendingDeletes = []
+      panelRoot.pendingDeletesMap = ({})
+      panelRoot.undoAction = ""
+    } else if (panelRoot.undoAction.indexOf("mute:") === 0) {
       panelRoot.unmuteApp(panelRoot.undoAction.slice(5))
       panelRoot.undoAction = ""
       if (panelRoot.pendingDeletes.length > 0) undoTimer.restart()
@@ -1420,7 +1444,7 @@ Item {
           model: [
             { label: strings.t("for30Mins"), sec: 1800 },
             { label: strings.t("for1Hour"), sec: 3600 },
-            { label: strings.t("untilTomorrow"), sec: 86400 },
+            { label: strings.t("untilTomorrow"), sec: Math.max(60, Model.getTomorrowSec() - Math.floor(Date.now() / 1000)) },
             { label: strings.t("untilTurnedOff"), sec: 0 }
           ]
 

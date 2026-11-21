@@ -220,7 +220,9 @@ function normalizeItem(raw, isLive) {
   var senderPid = Number(raw.senderPid || 0)
   if (!isFinite(senderPid) || senderPid < 0) senderPid = 0
   var urgency = typeof raw.urgency === "number" ? raw.urgency : 1
-  var ts = typeof raw.ts === "number" ? raw.ts : (Date.now() / 1000)
+  var ts = (typeof raw.ts === "number" && raw.ts > 0) ? raw.ts
+         : (typeof raw.closed_ts === "number" && raw.closed_ts > 0) ? raw.closed_ts
+         : (isLive ? (Date.now() / 1000) : 0)
   var execArgv = String(raw.execArgv || "")
   var link = String(raw.link || "")
 
@@ -358,8 +360,13 @@ function isDeleted(state, key) {
 }
 
 function isCleared(state, item) {
-  return isDeleted(state, item.key) ||
-    (state && Number(state.clearedBefore) > 0 && Number(item.ts) > 0 && Number(item.ts) <= Number(state.clearedBefore))
+  if (!item || !item.key) return false
+  if (isDeleted(state, item.key)) return true
+  if (state && Number(state.clearedBefore) > 0) {
+    var itemTs = Number(item.ts || 0)
+    if (itemTs <= Number(state.clearedBefore)) return true
+  }
+  return false
 }
 
 // -----------------------------------------------------------------------------
