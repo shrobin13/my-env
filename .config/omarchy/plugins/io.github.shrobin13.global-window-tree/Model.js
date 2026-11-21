@@ -241,7 +241,7 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson, activeWindowJs
       roots: roots
     };
   } catch (error) {
-    console.warn("Omarchy Tree snapshot parse failed:", error);
+    console.warn("Global Window Tree snapshot parse failed:", error);
     return null;
   }
 }
@@ -273,7 +273,7 @@ function focusSequence(address, monitorName, workspaceId) {
         "sh", "-c",
         'hyprctl dispatch "hl.dsp.focus({ monitor = \\"$1\\" })" >/dev/null 2>&1; '
         + 'hyprctl dispatch "hl.dsp.focus({ window = \\"address:$2\\" })" >/dev/null 2>&1',
-        "omarchy-tree", monitor, address
+        "global-window-tree", monitor, address
       ]
     }
   ];

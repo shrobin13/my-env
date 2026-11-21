@@ -70,7 +70,6 @@ Item {
     KeyHint { visible: !footerRoot.isSearching; keyText: "h l"; labelText: "fold" }
     KeyHint { visible: footerRoot.isSearching; keyText: "n N"; labelText: "next/prev" }
     KeyHint { keyText: "ctrl+h/l"; labelText: "monitor" }
-    KeyHint { visible: !footerRoot.isSearching; keyText: "1–0"; labelText: "workspace" }
     KeyHint { keyText: "/"; labelText: footerRoot.isSearching ? "edit" : "search" }
     KeyHint { keyText: "enter"; labelText: "jump" }
     KeyHint { visible: footerRoot.isSearching; keyText: "esc"; labelText: "clear" }

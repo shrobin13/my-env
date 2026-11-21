@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.shrobin13.omarchy-tree",
-  "name": "Omarchy Tree",
+  "id": "io.github.shrobin13.global-window-tree",
+  "name": "Global Window Tree",
   "version": "0.1.0",
-  "author": "shrobin13",
+  "author": "Sheikh Robin",
   "description": "Global monitor, workspace and window tree switcher",
   "kinds": ["overlay"],
   "keepLoaded": true,
   "entryPoints": {
-    "overlay": "OmarchyTree.qml"
+    "overlay": "GlobalWindowTree.qml"
   }
 }

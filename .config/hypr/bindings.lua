@@ -56,11 +56,11 @@ o.bind("SUPER + CTRL + ALT + K", "Show key bindings", "omarchy-menu-keybindings"
 -- WINDOW TREE OVERLAY
 -- =========================================================
 o.bind("SUPER + SHIFT + V", "Window tree",
-  "omarchy-shell -q shell toggle io.github.shrobin13.omarchy-tree")
+  "omarchy-shell -q shell toggle io.github.shrobin13.global-window-tree")
 
 hl.layer_rule({
-  name = "omarchy-tree-blur",
-  match = { namespace = "^omarchy-tree$" },
+  name = "global-window-tree-blur",
+  match = { namespace = "^global-window-tree$" },
   blur = true,
   ignore_alpha = 0.5,
   no_anim = true,

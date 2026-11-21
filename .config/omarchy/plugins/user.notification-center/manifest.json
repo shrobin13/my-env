@@ -3,7 +3,7 @@
   "id": "user.notification-center",
   "name": "Notification Center",
   "version": "1.0.0",
-  "author": "Light",
+  "author": "Sheikh Robin",
   "description": "SwayNC-inspired notification center and control panel with notification history, DND toggle, clear all, and quick settings.",
   "kinds": [
     "bar-widget"

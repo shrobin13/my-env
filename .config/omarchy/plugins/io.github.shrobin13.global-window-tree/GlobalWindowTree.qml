@@ -36,8 +36,8 @@ Item {
   property int pendingWorkspaceId: 0
   property bool pendingFallbackSent: false
 
-  readonly property bool reducedMotion: Quickshell.env("OMARCHY_TREE_REDUCED_MOTION") === "1"
-  readonly property bool highContrast: Quickshell.env("OMARCHY_TREE_HC") === "1"
+  readonly property bool reducedMotion: Quickshell.env("GLOBAL_WINDOW_TREE_REDUCED_MOTION") === "1" || Quickshell.env("OMARCHY_TREE_REDUCED_MOTION") === "1"
+  readonly property bool highContrast: Quickshell.env("GLOBAL_WINDOW_TREE_HC") === "1" || Quickshell.env("OMARCHY_TREE_HC") === "1"
 
   function open(payloadJson) {
     root.opened = true
@@ -279,38 +279,6 @@ Item {
     }
   }
 
-  // Digit handling per brief §6 & C3 fix:
-  // Moves the cursor to that workspace header on cursor's monitor.
-  // If empty: flashes that row and stays put. Does NOT dispatch workspace switch!
-  function moveToDigit(digit) {
-    var row = root.currentRow()
-    var monitor = row ? row.monitor : (root.model ? root.model.focusedMonitor : "")
-    if (!monitor || !root.model || !root.treeState) return
-    var num = digit === "0" ? 10 : Number(digit)
-
-    // Check if workspace has windows
-    var targetWs = null
-    for (var mi = 0; mi < root.model.roots.length; mi++) {
-      var rootData = root.model.roots[mi]
-      if (rootData.monitor === monitor) {
-        targetWs = rootData.workspaces[num - 1]
-        break
-      }
-    }
-
-    if (!targetWs || !targetWs.windows || targetWs.windows.length === 0) {
-      // Empty: flash row and stay put
-      root.flashWorkspace(monitor, num)
-      return
-    }
-
-    // Move cursor to that workspace header
-    var res = Tree.moveToWorkspace(root.treeState, monitor, num)
-    if (res >= 0) {
-      root.setCursor(res)
-    }
-  }
-
   Timer {
     id: flashTimer
     interval: 180
@@ -517,7 +485,7 @@ Item {
     color: "transparent"
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.namespace: "omarchy-tree"
+    WlrLayershell.namespace: "global-window-tree"
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
     // Scrim dimming backdrop
@@ -706,9 +674,6 @@ Item {
             event.accepted = true
           } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.focusCurrent()
-            event.accepted = true
-          } else if (event.text >= "0" && event.text <= "9") {
-            root.moveToDigit(event.text)
             event.accepted = true
           } else if (event.modifiers & Qt.ControlModifier) {
             if (event.key === Qt.Key_H || event.key === Qt.Key_Left || event.text === "\u0008") {
