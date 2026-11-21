@@ -13,6 +13,27 @@ Date: 2026-11-21
 - P9: `Quickshell.Hyprland` and `WlrKeyboardFocus.Exclusive` are present in the installed shell source. The overlay namespace is set through `WlrLayershell.namespace`.
 - P10: `Super+Shift+V` has no live bind. Live inventory also showed `Super+Shift+L`, `Super+Shift+T` and `Super+T` conflicts.
 
+## Accessibility and theme
+
+- Omarchy's live palette is available through `Color.background`, `Color.foreground`, `Color.accent` and `Color.urgent`.
+- Motion durations use `Style.duration(ms)` so animation preferences apply.
+- Reduced-motion and high-contrast modes use `OMARCHY_TREE_REDUCED_MOTION=1` and `OMARCHY_TREE_HC=1`.
+
+## Manual verification status
+
+- [ ] Focus in all four monitor/workspace combinations
+- [ ] Monitor unplug/replug snapshot rebuild
+- [ ] Dead-window Enter behavior
+- [ ] Theme-switch recoloring without restart
+- [ ] Layer-rule blur and no-blur fallback
+- [ ] Search keyboard isolation
+- [ ] Fold persistence after live refresh
+- [ ] Hot reload while open
+- [ ] Keybind toggle twice
+- [ ] Reduced-motion mode
+- [ ] High-contrast mode
+- [ ] Cold/warm open and cursor timing
+
 ## P5 follow-up
 
 - Direct Lua focus returned `ok`.

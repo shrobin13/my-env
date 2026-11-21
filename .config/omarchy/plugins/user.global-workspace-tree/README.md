@@ -23,3 +23,8 @@ The exact Lua bind shape may differ under your installed Omarchy version; the li
 ## Blur
 
 Paste `hyprland/layer-rule.lua` into your Hyprland Lua configuration. The overlay remains usable without this rule.
+
+## Accessibility
+
+- Set `OMARCHY_TREE_REDUCED_MOTION=1` to disable panel motion.
+- Set `OMARCHY_TREE_HC=1` to use a solid, high-contrast panel without scrim.

@@ -5,6 +5,7 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 import "Tree.js" as Tree
 
@@ -284,6 +285,8 @@ Item {
   property string pendingMonitor: ""
   property int pendingWorkspaceId: 0
   property bool pendingFallbackSent: false
+  readonly property bool reducedMotion: Quickshell.env("OMARCHY_TREE_REDUCED_MOTION") === "1"
+  readonly property bool highContrast: Quickshell.env("OMARCHY_TREE_HC") === "1"
 
   Timer {
     id: verifyFocusTimer
@@ -448,7 +451,7 @@ Item {
 
     Rectangle {
       anchors.fill: parent
-      color: Qt.rgba(0, 0, 0, 0.35)
+      color: root.highContrast ? "transparent" : Qt.rgba(0, 0, 0, 0.35)
     }
 
     Rectangle {
@@ -456,10 +459,21 @@ Item {
       width: 760
       height: 680
       radius: 24
-      color: Color.background
-      opacity: 0.86
+      color: root.highContrast ? Color.background : Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.86)
+      opacity: root.opened ? 1 : 0
+      scale: root.reducedMotion ? 1 : (root.opened ? 1 : 0.96)
+      Behavior on opacity {
+        enabled: !root.reducedMotion
+        NumberAnimation { duration: Style.duration(root.opened ? 180 : 90); easing.type: root.opened ? Easing.OutCubic : Easing.OutQuad }
+      }
+      Behavior on scale {
+        enabled: !root.reducedMotion
+        NumberAnimation { duration: Style.duration(root.opened ? 180 : 90); easing.type: Easing.OutCubic }
+      }
       border.width: 1
-      border.color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.12)
+      border.color: root.highContrast
+        ? Color.foreground
+        : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.12)
 
       Column {
         anchors.fill: parent
@@ -514,6 +528,9 @@ Item {
 
               Rectangle {
                 required property var modelData
+                Accessible.name: modelData.kind === "window"
+                  ? modelData.window.title + ", " + modelData.window.class + ", workspace " + modelData.workspace.number + ", monitor " + modelData.monitor
+                  : "Workspace " + modelData.workspace.number + ", monitor " + modelData.monitor
                 width: treeColumn.width
                 height: modelData.kind === "window" ? 28 : 32
                 radius: 8
