@@ -711,6 +711,65 @@ Item {
   // ---------------------------------------------------------------------------
   // KEYBOARD NAVIGATION (Connected from PanelKeyCatcher)
   // ---------------------------------------------------------------------------
+  property bool gPending: false
+
+  Timer {
+    id: gTimer
+    interval: 500
+    repeat: false
+    onTriggered: panelRoot.gPending = false
+  }
+
+  function nextMatch() {
+    if (notifListModel.count === 0) return
+    var next = (notifListView.currentIndex + 1) % notifListModel.count
+    notifListView.currentIndex = next
+    notifListView.positionViewAtIndex(next, ListView.Contain)
+  }
+
+  function prevMatch() {
+    if (notifListModel.count === 0) return
+    var prev = (notifListView.currentIndex - 1 + notifListModel.count) % notifListModel.count
+    notifListView.currentIndex = prev
+    notifListView.positionViewAtIndex(prev, ListView.Contain)
+  }
+
+  function jumpToFirst() {
+    if (notifListModel.count > 0) {
+      notifListView.currentIndex = 0
+      notifListView.positionViewAtIndex(0, ListView.Beginning)
+    }
+  }
+
+  function jumpToLast() {
+    if (notifListModel.count > 0) {
+      notifListView.currentIndex = notifListModel.count - 1
+      notifListView.positionViewAtIndex(notifListModel.count - 1, ListView.End)
+    }
+  }
+
+  function scrollPage(delta) {
+    if (notifListModel.count === 0) return
+    var target = Math.max(0, Math.min(notifListModel.count - 1, notifListView.currentIndex + delta))
+    notifListView.currentIndex = target
+    notifListView.positionViewAtIndex(target, ListView.Contain)
+  }
+
+  function enterSearch() {
+    searchInput.forceActiveFocus()
+    searchInput.cursorPosition = searchInput.text.length
+  }
+
+  function submitSearch() {
+    panelRoot.forceActiveFocus()
+  }
+
+  function clearSearch() {
+    searchInput.text = ""
+    panelRoot.searchQuery = ""
+    panelRoot.forceActiveFocus()
+  }
+
   function moveCursor(dx, dy) {
     if (dy > 0) {
       notifListView.incrementCurrentIndex()
@@ -736,7 +795,42 @@ Item {
 
   function handleTextKey(text, modifiers) {
     if (text === "/") {
-      searchInput.forceActiveFocus()
+      panelRoot.enterSearch()
+    } else if (text === "n") {
+      panelRoot.nextMatch()
+    } else if (text === "N") {
+      panelRoot.prevMatch()
+    } else if (text === "q") {
+      panelRoot.closeRequested()
+    } else if (text === "d") {
+      panelRoot.deleteSelected()
+    } else if (text === "p") {
+      var itP = notifListModel.get(notifListView.currentIndex)
+      if (itP && itP.key) panelRoot.togglePin(itP.key)
+    } else if (text === "s") {
+      var itS = notifListModel.get(notifListView.currentIndex)
+      if (itS && itS.key) {
+        if (itS.isSnoozed) panelRoot.wakeItem(itS.key)
+        else panelRoot.snoozeItem(itS.key, 3600)
+      }
+    } else if (text === "u") {
+      if (panelRoot.undoVisible) panelRoot.performUndo()
+    } else if (text === "g") {
+      if (panelRoot.gPending) {
+        panelRoot.jumpToFirst()
+        panelRoot.gPending = false
+      } else {
+        panelRoot.gPending = true
+        gTimer.restart()
+      }
+    } else if (text === "G") {
+      panelRoot.jumpToLast()
+    } else if (modifiers & Qt.ControlModifier) {
+      if (text === "\u0004" || text === "d") {
+        panelRoot.scrollPage(5)
+      } else if (text === "\u0015" || text === "u") {
+        panelRoot.scrollPage(-5)
+      }
     }
   }
 
@@ -1045,14 +1139,28 @@ Item {
           font.family: Style.font.family
           font.pixelSize: Math.max(12, Style.font.body)
           clip: true
-          onTextChanged: panelRoot.searchQuery = text
-          Keys.onReturnPressed: function(event) {
-            event.accepted = true
-            panelRoot.forceActiveFocus()
+          activeFocusOnTab: false
+          onTextChanged: {
+            panelRoot.searchQuery = text
+            if (notifListModel.count > 0) {
+              notifListView.currentIndex = 0
+            }
           }
-          Keys.onEnterPressed: function(event) {
-            event.accepted = true
-            panelRoot.forceActiveFocus()
+
+          Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Down || (event.key === Qt.Key_N && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ShiftModifier))) {
+              panelRoot.nextMatch()
+              event.accepted = true
+            } else if (event.key === Qt.Key_Up || (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) || (event.key === Qt.Key_K && (event.modifiers & Qt.ControlModifier)) || event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+              panelRoot.prevMatch()
+              event.accepted = true
+            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+              panelRoot.submitSearch()
+              event.accepted = true
+            } else if (event.key === Qt.Key_Escape) {
+              panelRoot.clearSearch()
+              event.accepted = true
+            }
           }
 
           Text {
@@ -1063,10 +1171,24 @@ Item {
             font: searchInput.font
             color: panelRoot.dimColor
           }
+        }
 
-          Keys.onEscapePressed: function() {
-            searchInput.text = ""
-            panelRoot.forceActiveFocus()
+        // Match count badge
+        Item {
+          visible: panelRoot.searchQuery.trim().length > 0
+          implicitWidth: matchCountText.implicitWidth + Style.space(8)
+          height: parent.height
+
+          Text {
+            id: matchCountText
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: notifListModel.count === 1
+              ? "1 match"
+              : (notifListModel.count + " matches")
+            font.family: Style.font.family
+            font.pixelSize: Style.space(11)
+            color: panelRoot.dimColor
           }
         }
 
@@ -1093,9 +1215,7 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-              searchInput.text = ""
-              panelRoot.searchQuery = ""
-              panelRoot.forceActiveFocus()
+              panelRoot.clearSearch()
             }
           }
         }

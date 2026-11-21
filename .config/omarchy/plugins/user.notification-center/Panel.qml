@@ -175,7 +175,13 @@ Panel {
       anchors.fill: parent
       clip: true
       blocked: notifPanel.isInputActive
-      onCloseRequested: root.close()
+      onCloseRequested: {
+        if (notifPanel.searchQuery !== "") {
+          notifPanel.clearSearch()
+        } else {
+          root.close()
+        }
+      }
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onMoveRequested: function(dx, dy) { notifPanel.moveCursor(dx, dy) }
       onActivateRequested: notifPanel.activateSelected()
