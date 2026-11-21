@@ -99,4 +99,16 @@ assert.strictEqual(state.rows[state.cursor].kind, "workspace", "U11: Cursor on w
 assert.strictEqual(state.rows[state.cursor].workspace.number, 1, "U11: Cursor on workspace number 1");
 assert.strictEqual(state.rows[state.cursor].monitor, "HDMI-A-1", "U11: Cursor on cursor's monitor");
 
-console.log("tree tests (U7-U12) passed");
+// U14: prevMonitor and nextMonitor jumping (Ctrl+H / Ctrl+L)
+// Prior test (U11) left cursor on HDMI-A-1
+assert.strictEqual(state.rows[state.cursor].monitor, "HDMI-A-1");
+context.nextMonitor(state);
+assert.strictEqual(state.rows[state.cursor].monitor, "eDP-1", "U14: nextMonitor from HDMI-A-1 wraps to eDP-1");
+context.prevMonitor(state);
+assert.strictEqual(state.rows[state.cursor].monitor, "HDMI-A-1", "U14: prevMonitor from eDP-1 wraps back to HDMI-A-1");
+context.prevMonitor(state);
+assert.strictEqual(state.rows[state.cursor].monitor, "eDP-1", "U14: prevMonitor from HDMI-A-1 jumps to eDP-1");
+context.nextMonitor(state);
+assert.strictEqual(state.rows[state.cursor].monitor, "HDMI-A-1", "U14: nextMonitor from eDP-1 jumps to HDMI-A-1");
+
+console.log("tree tests (U7-U12, U14) passed");

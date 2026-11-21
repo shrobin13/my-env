@@ -175,9 +175,10 @@ function moveToWorkspace(state, monitor, number) {
 
 function nextMonitor(state) {
   if (!state || !state.rows || !state.model || !state.model.roots) return;
+  var roots = state.model.roots;
+  if (!roots.length) return;
   var currentRow = state.rows[state.cursor];
   var currentMonitor = currentRow ? currentRow.monitor : "";
-  var roots = state.model.roots;
   var currentMonitorIdx = -1;
   for (var m = 0; m < roots.length; m++) {
     if (roots[m].monitor === currentMonitor) {
@@ -186,9 +187,42 @@ function nextMonitor(state) {
     }
   }
   var nextIdx = (currentMonitorIdx + 1) % roots.length;
-  var targetMonitor = roots[nextIdx].monitor;
+  jumpToMonitor(state, roots[nextIdx].monitor);
+}
 
+function prevMonitor(state) {
+  if (!state || !state.rows || !state.model || !state.model.roots) return;
+  var roots = state.model.roots;
+  if (!roots.length) return;
+  var currentRow = state.rows[state.cursor];
+  var currentMonitor = currentRow ? currentRow.monitor : "";
+  var currentMonitorIdx = -1;
+  for (var m = 0; m < roots.length; m++) {
+    if (roots[m].monitor === currentMonitor) {
+      currentMonitorIdx = m;
+      break;
+    }
+  }
+  var prevIdx = (currentMonitorIdx - 1 + roots.length) % roots.length;
+  jumpToMonitor(state, roots[prevIdx].monitor);
+}
+
+function jumpToMonitor(state, targetMonitor) {
+  if (!state || !state.rows) return;
   var searchActive = typeof state.search === "string" && state.search.trim().length > 0;
+
+  // First priority: active / focused window on that monitor
+  for (var w = 0; w < state.rows.length; w++) {
+    var winRow = state.rows[w];
+    if (winRow.monitor === targetMonitor && winRow.kind === "window" && winRow.window && winRow.window.focused) {
+      if (isRowNavigable(winRow, searchActive)) {
+        state.cursor = w;
+        return;
+      }
+    }
+  }
+
+  // Second priority: first selectable row on that monitor
   for (var i = 0; i < state.rows.length; i++) {
     var row = state.rows[i];
     if (row.monitor === targetMonitor && isRowNavigable(row, searchActive)) {

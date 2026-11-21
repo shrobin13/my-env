@@ -68,6 +68,7 @@ Item {
 
     KeyHint { keyText: "j k"; labelText: "move" }
     KeyHint { keyText: "h l"; labelText: "fold" }
+    KeyHint { keyText: "ctrl+h/l"; labelText: "monitor" }
     KeyHint { keyText: "1–0"; labelText: "workspace" }
     KeyHint { keyText: "/"; labelText: "search" }
     KeyHint { keyText: "enter"; labelText: "jump" }

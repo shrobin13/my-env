@@ -494,12 +494,12 @@ Item {
       }
     }
 
-    // Centered glass panel matching mockup: 1080px wide
+    // Centered glass panel matching mockup: 1120px wide
     Rectangle {
       id: glassPanel
       anchors.centerIn: parent
-      width: Math.min(1080, parent.width - 48)
-      height: Math.min(parent.height * 0.78, 720)
+      width: Math.min(1120, parent.width - 48)
+      height: Math.min(parent.height * 0.82, 780)
       radius: 24
 
       color: root.highContrast
@@ -556,18 +556,17 @@ Item {
           }
         }
 
-        // Columns area: Side-by-side monitor columns with 56px gap
-        Flickable {
-          id: columnsFlickable
+        // Columns area: Side-by-side separate monitor window panes
+        Item {
+          id: columnsArea
           width: parent.width
           height: parent.height - searchBar.height - footer.height - 32
           clip: true
-          contentWidth: columnsRow.implicitWidth
-          contentHeight: columnsRow.implicitHeight
 
           Row {
             id: columnsRow
-            spacing: 56
+            anchors.fill: parent
+            spacing: 20
 
             Repeater {
               model: root.model ? root.model.roots : []
@@ -575,6 +574,14 @@ Item {
               MonitorColumn {
                 required property var modelData
                 required property int index
+
+                width: {
+                  var count = root.model ? root.model.roots.length : 1
+                  if (count <= 1) return columnsArea.width
+                  var gap = columnsRow.spacing * (count - 1)
+                  return Math.floor((columnsArea.width - gap) / count)
+                }
+                height: columnsArea.height
 
                 rootData: modelData
                 monitorIndex: index
@@ -649,12 +656,26 @@ Item {
           } else if (event.text >= "0" && event.text <= "9") {
             root.moveToDigit(event.text)
             event.accepted = true
-          } else if (event.key === Qt.Key_U && (event.modifiers & Qt.ControlModifier)) {
-            root.move(-5)
-            event.accepted = true
-          } else if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
-            root.move(5)
-            event.accepted = true
+          } else if (event.modifiers & Qt.ControlModifier) {
+            if (event.key === Qt.Key_H || event.key === Qt.Key_Left || event.text === "\u0008") {
+              if (root.treeState) {
+                Tree.prevMonitor(root.treeState)
+                root.treeStateChanged()
+              }
+              event.accepted = true
+            } else if (event.key === Qt.Key_L || event.key === Qt.Key_Right || event.text === "\u000c") {
+              if (root.treeState) {
+                Tree.nextMonitor(root.treeState)
+                root.treeStateChanged()
+              }
+              event.accepted = true
+            } else if (event.key === Qt.Key_U) {
+              root.move(-5)
+              event.accepted = true
+            } else if (event.key === Qt.Key_D) {
+              root.move(5)
+              event.accepted = true
+            }
           } else if (event.text === "g") {
             if (root.gPending) {
               if (root.treeState) root.setCursor(Tree.firstSelectable(root.treeState))
@@ -666,6 +687,12 @@ Item {
             event.accepted = true
           } else if (event.text === "G") {
             if (root.treeState) root.setCursor(Tree.lastSelectable(root.treeState))
+            event.accepted = true
+          } else if (event.key === Qt.Key_Backtab) {
+            if (root.treeState) {
+              Tree.prevMonitor(root.treeState)
+              root.treeStateChanged()
+            }
             event.accepted = true
           } else if (event.key === Qt.Key_Tab) {
             if (root.treeState) {
