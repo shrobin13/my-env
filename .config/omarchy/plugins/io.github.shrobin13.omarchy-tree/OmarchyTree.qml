@@ -8,6 +8,7 @@ import qs.Commons
 import qs.Commons as Commons
 import "Model.js" as Model
 import "Tree.js" as Tree
+import "components"
 
 Item {
   id: root
@@ -24,6 +25,20 @@ Item {
   property bool reloadPending: false
   property bool awaitingReply: false
 
+  property string monitorsJson: ""
+  property string workspacesJson: ""
+  property string clientsJson: ""
+  property string activeWindowJson: ""
+
+  property string flashedWorkspaceKey: ""
+  property string pendingAddress: ""
+  property string pendingMonitor: ""
+  property int pendingWorkspaceId: 0
+  property bool pendingFallbackSent: false
+
+  readonly property bool reducedMotion: Quickshell.env("OMARCHY_TREE_REDUCED_MOTION") === "1"
+  readonly property bool highContrast: Quickshell.env("OMARCHY_TREE_HC") === "1"
+
   function open(payloadJson) {
     root.opened = true
     root.loadFailed = false
@@ -39,6 +54,7 @@ Item {
     root.searchMode = false
     root.searchText = ""
     root.gPending = false
+    root.awaitingReply = false
   }
 
   function toggle() {
@@ -49,29 +65,29 @@ Item {
   function ping() { return "ok" }
 
   function reload() {
-    if (monitorsProc.running || workspacesProc.running || clientsProc.running) {
+    if (monitorsProc.running || workspacesProc.running || clientsProc.running || activeWindowProc.running) {
       root.reloadPending = true
       return
     }
     root.startSnapshot()
   }
 
-  property string monitorsJson: ""
-  property string workspacesJson: ""
-  property string clientsJson: ""
-
   function startSnapshot() {
     root.awaitingReply = true
     root.monitorsJson = ""
     root.workspacesJson = ""
     root.clientsJson = ""
+    root.activeWindowJson = ""
     monitorsProc.running = true
   }
 
   function finishSnapshot() {
-    if (root.monitorsJson === "" || root.workspacesJson === "" || root.clientsJson === "") return
-    var snapshot = Model.buildSnapshot(root.monitorsJson, root.workspacesJson, root.clientsJson)
     root.awaitingReply = false
+    if (root.monitorsJson === "" || root.workspacesJson === "" || root.clientsJson === "") {
+      root.loadFailed = true
+      return
+    }
+    var snapshot = Model.buildSnapshot(root.monitorsJson, root.workspacesJson, root.clientsJson, root.activeWindowJson)
     if (snapshot) {
       root.model = snapshot
       root.rebuildTree()
@@ -86,36 +102,46 @@ Item {
   }
 
   function rebuildTree() {
+    if (!root.model) return
     var state = Tree.makeState(root.model)
-    var oldCursorRow = null
-    if (root.treeState && root.treeState.rows[root.treeState.cursor]) {
-      var oldRow = root.treeState.rows[root.treeState.cursor]
-      oldCursorRow = oldRow.window ? oldRow.window.address : (oldRow.workspace ? oldRow.workspace.monitor + ":" + oldRow.workspace.number : null)
-    }
+    state.folds = root.folded
+    state.search = root.searchText
     var rows = Tree.flatten(root.model, root.folded, root.searchText)
     state.rows = rows
-    state.folds = root.folded
+
+    var oldCursorAddress = null
+    var oldCursorWsKey = null
+    if (root.treeState && root.treeState.rows && root.treeState.rows[root.treeState.cursor]) {
+      var oldRow = root.treeState.rows[root.treeState.cursor]
+      if (oldRow.window) oldCursorAddress = oldRow.window.address
+      else if (oldRow.workspace) oldCursorWsKey = oldRow.monitor + ":" + oldRow.workspace.number
+    }
+
     var cursor = 0
     if (root.searchText.length === 0) {
-      if (oldCursorRow) {
-        for (var oi = 0; oi < rows.length; oi++) {
-          var candidate = rows[oi]
-          var key = candidate.window ? candidate.window.address : (candidate.workspace ? candidate.workspace.monitor + ":" + candidate.workspace.number : null)
-          if (key === oldCursorRow) { cursor = oi; break }
+      var foundOld = false
+      if (oldCursorAddress) {
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i].window && rows[i].window.address === oldCursorAddress) {
+            cursor = i
+            foundOld = true
+            break
+          }
         }
-      }
-      if (!oldCursorRow && root.model && root.model.focusedAddress) {
-        for (var fi = 0; fi < rows.length; fi++) {
-          if (rows[fi].window && rows[fi].window.address === root.model.focusedAddress) {
-            cursor = fi
+      } else if (oldCursorWsKey) {
+        for (var j = 0; j < rows.length; j++) {
+          if (rows[j].kind === "workspace" && (rows[j].monitor + ":" + rows[j].workspace.number) === oldCursorWsKey) {
+            cursor = j
+            foundOld = true
             break
           }
         }
       }
-    } else {
-      for (var si = 0; si < rows.length; si++) {
-        if (rows[si].matched) { cursor = si; break }
+      if (!foundOld) {
+        cursor = Tree.initialCursor(rows, root.model)
       }
+    } else {
+      cursor = Tree.firstSelectable(state)
     }
     state.cursor = cursor
     root.treeState = state
@@ -133,218 +159,174 @@ Item {
     root.treeState = state
   }
 
-  function setCursorRow(row) {
-    if (!root.treeState || !root.treeState.rows) return
-    for (var i = 0; i < root.treeState.rows.length; i++) {
-      if (root.treeState.rows[i] === row) {
-        root.setCursor(i)
-        return
-      }
-    }
-  }
-
   function move(delta) {
     if (!root.treeState) return
-    var rows = root.treeState.rows
-    if (!rows.length) return
-    var next = root.treeState.cursor + delta
-    next = Math.max(0, Math.min(rows.length - 1, next))
-    if (root.searchText.length > 0) {
-      var direction = delta > 0 ? 1 : -1
-      for (var i = next; i >= 0 && i < rows.length; i += direction) {
-        if (rows[i].matched) { next = i; break }
-      }
-    }
-    root.setCursor(next)
+    Tree.move(root.treeState, delta)
+    root.treeStateChanged()
   }
 
-  function foldOrUnfoldWorkspace() {
+  // Fold semantics per brief §6 & M1 fix:
+  // 'h' on a window moves to its workspace header.
+  // 'h' on a workspace header folds it. Already folded: NO-OP!
+  function foldWorkspaceHeader() {
     var row = root.currentRow()
     if (!row || !row.workspace) return
-    var workspace = row.workspace
-    var foldKey = row.monitor + ":" + workspace.id + ":" + workspace.number
-    if (root.folded[foldKey]) delete root.folded[foldKey]
-    else root.folded[foldKey] = true
+    var ws = row.workspace
+    var foldKey = row.monitor + ":" + ws.id + ":" + ws.number
+    if (root.folded[foldKey]) {
+      // Already folded: NO-OP
+      return
+    }
+    root.folded[foldKey] = true
     root.rebuildTree()
   }
 
   function moveToWorkspaceHeader() {
     var row = root.currentRow()
-    if (!row || !root.treeState) return
-    var workspace = row.workspace
-    if (!workspace) return
+    if (!row || !root.treeState || !row.workspace) return
+    var ws = row.workspace
     var rows = root.treeState.rows
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].kind === "workspace"
           && rows[i].monitor === row.monitor
-          && rows[i].workspace.number === workspace.number) {
+          && rows[i].workspace.number === ws.number) {
         root.setCursor(i)
         return
       }
     }
   }
 
+  // 'l' unfolds workspace header. If already unfolded, moves to first window.
   function unfoldWorkspace() {
     var row = root.currentRow()
-    if (!row || row.kind !== "workspace" || !root.treeState) return
-    var workspace = row.workspace
-    var foldKey = row.monitor + ":" + workspace.id + ":" + workspace.number
+    if (!row || row.kind !== "workspace" || !root.treeState || !row.workspace) return
+    var ws = row.workspace
+    var foldKey = row.monitor + ":" + ws.id + ":" + ws.number
     if (root.folded[foldKey]) {
       delete root.folded[foldKey]
       root.rebuildTree()
       return
     }
+    // Already unfolded: move to its first window
     var rows = root.treeState.rows
     for (var i = root.treeState.cursor + 1; i < rows.length; i++) {
       if (rows[i].kind === "window"
           && rows[i].monitor === row.monitor
-          && rows[i].workspace.number === workspace.number) {
+          && rows[i].workspace.number === ws.number) {
         root.setCursor(i)
         return
       }
     }
   }
 
+  // Digit handling per brief §6 & C3 fix:
+  // Moves the cursor to that workspace header on cursor's monitor.
+  // If empty: flashes that row and stays put. Does NOT dispatch workspace switch!
   function moveToDigit(digit) {
     var row = root.currentRow()
-    var monitor = row ? row.monitor : (root.model && root.model.focusedMonitor)
-    if (!monitor || !root.model) return
+    var monitor = row ? row.monitor : (root.model ? root.model.focusedMonitor : "")
+    if (!monitor || !root.model || !root.treeState) return
+    var num = digit === "0" ? 10 : Number(digit)
+
+    // Check if workspace has windows
+    var targetWs = null
     for (var mi = 0; mi < root.model.roots.length; mi++) {
       var rootData = root.model.roots[mi]
-      if (rootData.monitor !== monitor) continue
-      var number = digit === "0" ? 10 : Number(digit)
-      var workspace = rootData.workspaces[number - 1]
-      if (!workspace) return
-      if (!workspace.windows.length) {
-        flashWorkspace(rootData.monitor, number)
-        return
+      if (rootData.monitor === monitor) {
+        targetWs = rootData.workspaces[num - 1]
+        break
       }
-      if (workspace.id > 0) root.switchWorkspace(workspace.id)
-      var rows = root.treeState.rows
-      for (var ri = 0; ri < rows.length; ri++) {
-        if (rows[ri].kind === "workspace"
-            && rows[ri].monitor === monitor
-            && rows[ri].workspace.number === number) {
-          root.treeState.cursor = ri
-          root.setCursor(ri)
-          return
-        }
-      }
+    }
+
+    if (!targetWs || !targetWs.windows || targetWs.windows.length === 0) {
+      // Empty: flash row and stay put
+      root.flashWorkspace(monitor, num)
       return
+    }
+
+    // Move cursor to that workspace header
+    var res = Tree.moveToWorkspace(root.treeState, monitor, num)
+    if (res >= 0) {
+      root.setCursor(res)
     }
   }
 
-  property var flash: null
   Timer {
     id: flashTimer
     interval: 180
     repeat: false
-    onTriggered: root.flash = null
+    onTriggered: root.flashedWorkspaceKey = ""
   }
   function flashWorkspace(monitor, number) {
-    root.flash = monitor + ":" + number
+    root.flashedWorkspaceKey = monitor + ":" + number
     flashTimer.restart()
-  }
-
-  function focusFailed() {
-    root.flashWorkspace(root.pendingMonitor, 0)
-    root.pendingAddress = ""
-    root.reload()
   }
 
   function focusCurrent() {
     var row = root.currentRow()
     if (!row) return
-    var workspace = row.workspace
-    var window = row.window
-    if (window) root.focusAddress(window.address)
-    else if (workspace && workspace.windows.length > 0) {
-      var ordered = workspace.windows.slice().sort(function (a, b) {
+    var ws = row.workspace
+    var win = row.window
+    if (win) {
+      root.focusAddress(win.address)
+    } else if (ws && ws.windows && ws.windows.length > 0) {
+      var sorted = ws.windows.slice().sort(function (a, b) {
         return a.focusHistoryID - b.focusHistoryID
       })
-      root.focusAddress(ordered[0].address)
+      root.focusAddress(sorted[0].address)
     }
   }
 
   function focusAddress(address) {
     var row = root.currentRow()
     var monitor = row ? row.monitor : ""
-    var workspaceId = row && row.workspace ? row.workspace.id : 0
-    if (row && row.window) workspaceId = row.window.workspaceId
-    var sequence = Model.focusSequence(address, monitor, workspaceId)
+    var wsId = row && row.workspace ? row.workspace.id : 0
+    if (row && row.window) wsId = row.window.workspaceId
+    var sequence = Model.focusSequence(address, monitor, wsId)
     if (!sequence.length) return
+
     root.pendingAddress = String(address)
     root.pendingMonitor = monitor
-    root.pendingWorkspaceId = workspaceId
+    root.pendingWorkspaceId = wsId
     root.pendingFallbackSent = false
+
     dispatchProc.command = sequence[0].command
     dispatchProc.running = true
   }
 
-  property string pendingAddress: ""
-  property string pendingMonitor: ""
-  property int pendingWorkspaceId: 0
-  property bool pendingFallbackSent: false
-  readonly property bool reducedMotion: Quickshell.env("OMARCHY_TREE_REDUCED_MOTION") === "1"
-  readonly property bool highContrast: Quickshell.env("OMARCHY_TREE_HC") === "1"
+  function focusFailed() {
+    var row = root.currentRow()
+    if (row && row.workspace) {
+      root.flashWorkspace(row.monitor, row.workspace.number)
+    }
+    root.pendingAddress = ""
+    root.reload()
+  }
 
   Timer {
     id: verifyFocusTimer
-    interval: 80
+    interval: 70
     repeat: false
-    onTriggered: activeWindowProc.running = true
-  }
-
-  function switchWorkspace(workspaceId) {
-    workspaceProc.command = ["hyprctl", "dispatch", "workspace", String(workspaceId)]
-    workspaceProc.running = true
-  }
-
-  function moveFirst() {
-    if (!root.treeState || !root.treeState.rows.length) return
-    root.setCursor(0)
-  }
-
-  function moveLast() {
-    if (!root.treeState || !root.treeState.rows.length) return
-    root.setCursor(root.treeState.rows.length - 1)
-  }
-
-  function movePage(delta) {
-    if (!root.treeState || !root.treeState.rows.length) return
-    var count = root.treeState.rows.length
-    var page = Math.max(1, Math.round(count / 2))
-    root.move(delta * page)
-  }
-
-  function moveToNextMonitor() {
-    var row = root.currentRow()
-    if (!row || !root.model) return
-    var monitorNames = []
-    for (var i = 0; i < root.model.roots.length; i++) {
-      monitorNames.push(root.model.roots[i].monitor)
-    }
-    var currentIndex = monitorNames.indexOf(row.monitor)
-    var nextMonitor = monitorNames[(currentIndex + 1) % monitorNames.length]
-    var rows = root.treeState.rows
-    for (var ri = 0; ri < rows.length; ri++) {
-      if (rows[ri].monitor === nextMonitor) {
-        root.setCursor(ri)
-        return
-      }
-    }
+    onTriggered: verifyProc.running = true
   }
 
   function enterSearch() {
+    if (!root.treeState) return
     root.searchMode = true
     root.gPending = false
-    Qt.callLater(function () { searchInput.forceActiveFocus() })
+    root.treeState.recordedCursor = root.treeState.cursor
+    Qt.callLater(function () { searchBar.forceFocus() })
   }
 
+  // Esc in search restores recorded cursor per brief §6 & H2 fix
   function exitSearch() {
     root.searchMode = false
     root.searchText = ""
-    root.rebuildTree()
+    if (root.treeState) {
+      var restored = root.treeState.recordedCursor
+      root.rebuildTree()
+      if (root.treeState) root.setCursor(restored)
+    }
     Qt.callLater(function () { keyCatcher.forceActiveFocus() })
   }
 
@@ -364,9 +346,12 @@ Item {
 
   Connections {
     target: Hyprland
-    function onRawEvent(event) { if (root.opened) refreshTimer.restart() }
+    function onRawEvent(event) {
+      if (root.opened) refreshTimer.restart()
+    }
   }
 
+  // Snapshot processes
   Process {
     id: monitorsProc
     command: ["hyprctl", "monitors", "-j"]
@@ -393,36 +378,49 @@ Item {
     stdout: StdioCollector { id: clientsOut; waitForEnd: true }
     onExited: function (exitCode, exitStatus) {
       root.clientsJson = clientsOut.text
-      if (exitCode === 0) root.finishSnapshot()
+      if (exitCode === 0) activeWindowProc.running = true
       else root.finishSnapshot()
     }
-  }
-  Process {
-    id: dispatchProc
-    command: ["true"]
-    onExited: verifyFocusTimer.restart()
   }
   Process {
     id: activeWindowProc
     command: ["hyprctl", "activewindow", "-j"]
     stdout: StdioCollector { id: activeWindowOut; waitForEnd: true }
     onExited: function (exitCode, exitStatus) {
+      root.activeWindowJson = (exitCode === 0) ? activeWindowOut.text : ""
+      root.finishSnapshot()
+    }
+  }
+
+  // Focus dispatch processes
+  Process {
+    id: dispatchProc
+    command: ["true"]
+    onExited: verifyFocusTimer.restart()
+  }
+  Process {
+    id: verifyProc
+    command: ["hyprctl", "activewindow", "-j"]
+    stdout: StdioCollector { id: verifyOut; waitForEnd: true }
+    onExited: function (exitCode, exitStatus) {
       if (exitCode !== 0 || !root.pendingAddress) {
         root.focusFailed()
         return
       }
       try {
-        var active = JSON.parse(activeWindowOut.text)
+        var active = JSON.parse(verifyOut.text)
         if (active && active.address === root.pendingAddress) {
           root.pendingAddress = ""
           root.close()
           return
         }
-      } catch (error) {}
+      } catch (err) {}
+
+      // Fallback
       if (!root.pendingFallbackSent) {
         root.pendingFallbackSent = true
-        var sequence = Model.focusSequence(root.pendingAddress, root.pendingMonitor, root.pendingWorkspaceId)
-        fallbackProc.command = sequence[sequence.length - 1].command
+        var seq = Model.focusSequence(root.pendingAddress, root.pendingMonitor, root.pendingWorkspaceId)
+        fallbackProc.command = seq[seq.length - 1].command
         fallbackProc.running = true
       } else {
         root.focusFailed()
@@ -434,11 +432,8 @@ Item {
     command: ["true"]
     onExited: verifyFocusTimer.restart()
   }
-  Process {
-    id: workspaceProc
-    command: ["true"]
-  }
 
+  // Overlay surface
   PanelWindow {
     id: panel
     visible: root.opened
@@ -449,187 +444,204 @@ Item {
     WlrLayershell.namespace: "omarchy-tree"
     WlrLayershell.keyboardFocus: root.opened ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+    // Scrim dimming backdrop
     Rectangle {
       anchors.fill: parent
-      color: root.highContrast ? "transparent" : Qt.rgba(0, 0, 0, 0.35)
+      color: root.highContrast ? "transparent" : Qt.rgba(9 / 255, 10 / 255, 16 / 255, 0.55)
+      MouseArea {
+        anchors.fill: parent
+        onClicked: root.close()
+      }
     }
 
+    // Centered glass panel matching mockup: 1080px wide
     Rectangle {
+      id: glassPanel
       anchors.centerIn: parent
-      width: 760
-      height: 680
+      width: Math.min(1080, parent.width - 48)
+      height: Math.min(parent.height * 0.78, 720)
       radius: 24
-      color: root.highContrast ? Color.background : Qt.rgba(Color.background.r, Color.background.g, Color.background.b, 0.86)
+
+      color: root.highContrast
+        ? Color.background
+        : Qt.rgba(Color.background.r * 0.9 + 0.05, Color.background.g * 0.9 + 0.05, Color.background.b * 0.9 + 0.08, 0.86)
+
+      border.width: 1
+      border.color: root.highContrast
+        ? Color.foreground
+        : Qt.rgba(255, 255, 255, 0.08)
+
       opacity: root.opened ? 1 : 0
       scale: root.reducedMotion ? 1 : (root.opened ? 1 : 0.96)
       Behavior on opacity {
         enabled: !root.reducedMotion
-        NumberAnimation { duration: Style.duration(root.opened ? 180 : 90); easing.type: root.opened ? Easing.OutCubic : Easing.OutQuad }
+        NumberAnimation {
+          duration: Style.duration(root.opened ? 180 : 90)
+          easing.type: root.opened ? Easing.OutCubic : Easing.OutQuad
+        }
       }
       Behavior on scale {
         enabled: !root.reducedMotion
-        NumberAnimation { duration: Style.duration(root.opened ? 180 : 90); easing.type: Easing.OutCubic }
+        NumberAnimation {
+          duration: Style.duration(root.opened ? 180 : 90)
+          easing.type: Easing.OutCubic
+        }
       }
-      border.width: 1
-      border.color: root.highContrast
-        ? Color.foreground
-        : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.12)
 
       Column {
         anchors.fill: parent
-        anchors.margins: 32
+        anchors.topMargin: 28
+        anchors.leftMargin: 32
+        anchors.rightMargin: 32
+        anchors.bottomMargin: 20
         spacing: 16
 
-        Text {
-          textFormat: Text.PlainText
-          text: "Window Tree"
-          color: Color.foreground
-          font.pixelSize: 15
-          font.weight: 600
-          font.family: "monospace"
-        }
+        // Always-visible Search Bar capsule
+        SearchBar {
+          id: searchBar
+          searchMode: root.searchMode
+          searchText: root.searchText
+          accentColor: Color.accent
+          matchCount: {
+            if (!root.treeState || !root.treeState.rows) return 0
+            return root.treeState.rows.filter(function(r) { return r.kind === "window" && r.matched }).length
+          }
 
-        TextInput {
-          id: searchInput
-          visible: root.searchMode
-          width: parent.width
-          text: root.searchText
-          color: Color.foreground
-          font.pixelSize: 14
-          font.family: "monospace"
-          onTextChanged: {
-            root.searchText = text
+          onSearchActivated: root.enterSearch()
+          onSearchEscaped: root.exitSearch()
+          onSearchSubmitted: root.focusCurrent()
+          onSearchTextChanged: {
+            root.searchText = searchBar.searchText
             root.rebuildTree()
           }
-          Keys.onPressed: function(event) {
-            if (event.key === Qt.Key_Escape) {
-              root.exitSearch()
-              event.accepted = true
-            } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-              root.focusCurrent()
-              event.accepted = true
-            }
-          }
         }
 
+        // Columns area: Side-by-side monitor columns with 56px gap
         Flickable {
+          id: columnsFlickable
           width: parent.width
-          height: parent.height - (root.searchMode ? 100 : 48)
+          height: parent.height - searchBar.height - footer.height - 32
           clip: true
-          contentHeight: treeColumn.height
+          contentWidth: columnsRow.implicitWidth
+          contentHeight: columnsRow.implicitHeight
 
-          Column {
-            id: treeColumn
-            width: parent.width
-            spacing: 4
+          Row {
+            id: columnsRow
+            spacing: 56
 
             Repeater {
-              model: root.treeState ? root.treeState.rows : []
+              model: root.model ? root.model.roots : []
 
-              Rectangle {
+              MonitorColumn {
                 required property var modelData
-                Accessible.name: modelData.kind === "window"
-                  ? modelData.window.title + ", " + modelData.window.class + ", workspace " + modelData.workspace.number + ", monitor " + modelData.monitor
-                  : "Workspace " + modelData.workspace.number + ", monitor " + modelData.monitor
-                width: treeColumn.width
-                height: modelData.kind === "window" ? 28 : 32
-                radius: 8
-                color: root.treeState && root.treeState.rows[root.treeState.cursor] === modelData
-                  ? Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.08)
-                  : "transparent"
-                opacity: root.searchText.length === 0 || modelData.matched ? 1.0 : 0.18
+                required property int index
 
-                Row {
-                  anchors.fill: parent
-                  anchors.leftMargin: modelData.kind === "window" ? 24 : 8
-                  spacing: 8
+                rootData: modelData
+                monitorIndex: index
+                cursorRow: root.currentRow()
+                folds: root.folded
+                flashedKey: root.flashedWorkspaceKey
+                isSearching: root.searchMode
+                searchQuery: root.searchText.toLowerCase()
 
-                  Text {
-                    textFormat: Text.PlainText
-                    text: modelData.kind === "workspace"
-                      ? ("[" + modelData.workspace.number + "]")
-                      : ("  " + modelData.window.class)
-                    color: modelData.kind === "workspace" ? Color.accent : Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-                    font.pixelSize: modelData.kind === "workspace" ? 13 : 11
-                    font.family: "monospace"
-                  }
-                  Text {
-                    textFormat: Text.PlainText
-                    text: modelData.kind === "workspace"
-                      ? (modelData.monitor + "  " + (modelData.workspace.windows.length === 0 ? "empty" : ""))
-                      : modelData.window.title
-                    color: Color.foreground
-                    font.pixelSize: modelData.kind === "workspace" ? 13 : 13
-                    font.family: "monospace"
-                    elide: Text.ElideRight
-                    width: 620
-                  }
-                }
-
-                MouseArea {
-                  anchors.fill: parent
-                  onClicked: {
-                    root.setCursorRow(modelData)
+                onWorkspaceClicked: function(ws) {
+                  var res = Tree.moveToWorkspace(root.treeState, modelData.monitor, ws.number)
+                  if (res >= 0) {
+                    root.setCursor(res)
                     root.focusCurrent()
                   }
+                }
+                onWindowClicked: function(addr) {
+                  root.focusAddress(addr)
                 }
               }
             }
           }
         }
 
-        Text {
-          textFormat: Text.PlainText
-          text: "j/k move  h/l fold  / search  Enter focus  q/Esc close"
-          color: Qt.rgba(Color.foreground.r, Color.foreground.g, Color.foreground.b, 0.55)
-          font.pixelSize: 11
-          font.family: "monospace"
+        // Footer with keycaps and window/monitor summary
+        Footer {
+          id: footer
+          totalWindows: root.model ? root.model.totalWindows : 0
+          totalMonitors: root.model ? root.model.roots.length : 0
+          matchedWindows: {
+            if (!root.treeState || !root.treeState.rows) return 0
+            return root.treeState.rows.filter(function(r) { return r.kind === "window" && r.matched }).length
+          }
+          isSearching: root.searchMode && root.searchText.length > 0
         }
       }
 
-      Rectangle {
-        anchors.fill: parent
-        visible: root.flash !== null
-        color: Qt.rgba(1, 1, 1, 0.06)
-        radius: 24
-      }
-
+      // Invisible keycatcher for tree navigation mode
       Item {
         id: keyCatcher
         anchors.fill: parent
         focus: true
+
         Keys.onPressed: function(event) {
           if (event.key === Qt.Key_Escape || event.text === "q") {
             if (root.searchMode) {
-              root.searchMode = false
-              root.searchText = ""
-              root.rebuildTree()
+              root.exitSearch()
             } else {
               root.close()
             }
             event.accepted = true
             return
           }
+
           if (root.searchMode) return
-          if (event.text === "j") { root.move(1); event.accepted = true }
-          else if (event.text === "k") { root.move(-1); event.accepted = true }
-          else if (event.text === "h") {
-            if (root.currentRow() && root.currentRow().kind === "window") root.moveToWorkspaceHeader()
-            else if (root.currentRow() && root.currentRow().kind === "workspace") root.foldOrUnfoldWorkspace()
+
+          if (event.text === "j") {
+            root.move(1)
+            event.accepted = true
+          } else if (event.text === "k") {
+            root.move(-1)
+            event.accepted = true
+          } else if (event.text === "h") {
+            var curr = root.currentRow()
+            if (curr && curr.kind === "window") {
+              root.moveToWorkspaceHeader()
+            } else if (curr && curr.kind === "workspace") {
+              root.foldWorkspaceHeader()
+            }
+            event.accepted = true
+          } else if (event.text === "l") {
+            root.unfoldWorkspace()
+            event.accepted = true
+          } else if (event.text === "/") {
+            root.enterSearch()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            root.focusCurrent()
+            event.accepted = true
+          } else if (event.text >= "0" && event.text <= "9") {
+            root.moveToDigit(event.text)
+            event.accepted = true
+          } else if (event.key === Qt.Key_U && (event.modifiers & Qt.ControlModifier)) {
+            root.move(-5)
+            event.accepted = true
+          } else if (event.key === Qt.Key_D && (event.modifiers & Qt.ControlModifier)) {
+            root.move(5)
+            event.accepted = true
+          } else if (event.text === "g") {
+            if (root.gPending) {
+              if (root.treeState) root.setCursor(Tree.firstSelectable(root.treeState))
+              root.gPending = false
+            } else {
+              root.gPending = true
+              gTimer.restart()
+            }
+            event.accepted = true
+          } else if (event.text === "G") {
+            if (root.treeState) root.setCursor(Tree.lastSelectable(root.treeState))
+            event.accepted = true
+          } else if (event.key === Qt.Key_Tab) {
+            if (root.treeState) {
+              Tree.nextMonitor(root.treeState)
+              root.treeStateChanged()
+            }
             event.accepted = true
           }
-          else if (event.text === "l") { root.unfoldWorkspace(); event.accepted = true }
-          else if (event.text === "/") { root.enterSearch(); event.accepted = true }
-          else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.focusCurrent(); event.accepted = true }
-          else if (event.text >= "0" && event.text <= "9") { root.moveToDigit(event.text); event.accepted = true }
-          else if (event.key === Qt.Key_U && event.modifiers & Qt.ControlModifier) { root.movePage(-1); event.accepted = true }
-          else if (event.key === Qt.Key_D && event.modifiers & Qt.ControlModifier) { root.movePage(1); event.accepted = true }
-          else if (event.text === "g") {
-            if (root.gPending) { root.moveFirst(); root.gPending = false }
-            else { root.gPending = true; gTimer.restart() }
-            event.accepted = true
-          } else if (event.text === "G") { root.moveLast(); event.accepted = true }
-          else if (event.key === Qt.Key_Tab) { root.moveToNextMonitor(); event.accepted = true }
         }
       }
     }

@@ -25,14 +25,21 @@ function localWorkspaceNumber(workspace, monitorIndex) {
     var modulo = ((id - 1) % 10) + 1;
     if (modulo >= 1 && modulo <= 10) return modulo;
   }
-  return finiteNumber(monitorIndex, 0) >= 0 ? 0 : 0;
+  return 0;
 }
 
-function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
+function buildSnapshot(monitorsJson, workspacesJson, clientsJson, activeWindowJson) {
   try {
     var monitors = JSON.parse(monitorsJson);
     var workspaces = JSON.parse(workspacesJson);
     var clients = JSON.parse(clientsJson);
+    var activeWindow = null;
+    if (activeWindowJson && typeof activeWindowJson === "string" && activeWindowJson.trim().length > 0) {
+      try {
+        activeWindow = JSON.parse(activeWindowJson);
+      } catch (e) {}
+    }
+
     if (!Array.isArray(monitors) || !Array.isArray(workspaces) || !Array.isArray(clients)) {
       return null;
     }
@@ -60,23 +67,23 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
 
     var workspaceIndex = Object.create(null);
     for (var wi = 0; wi < workspaces.length; wi++) {
-      var workspace = workspaces[wi];
-      if (!isObject(workspace)) continue;
-      var monitorName = String(workspace.monitor || "");
-      if (!monitorName && workspace.monitorID !== undefined) {
-        var monitor = monitorById[String(workspace.monitorID)];
-        if (monitor) monitorName = monitor.name;
+      var ws = workspaces[wi];
+      if (!isObject(ws)) continue;
+      var monitorName = String(ws.monitor || "");
+      if (!monitorName && ws.monitorID !== undefined) {
+        var mon = monitorById[String(ws.monitorID)];
+        if (mon) monitorName = mon.name;
       }
-      var monitor = monitorByName[monitorName];
-      if (!monitor) continue;
-      var monitorIndex = monitorList.indexOf(monitor);
-      var number = localWorkspaceNumber(workspace, monitorIndex);
-      if (number < 1 || number > 10) continue;
-      var key = monitorName + ":" + number;
+      var targetMon = monitorByName[monitorName];
+      if (!targetMon) continue;
+      var monitorIdx = monitorList.indexOf(targetMon);
+      var wsNum = localWorkspaceNumber(ws, monitorIdx);
+      if (wsNum < 1 || wsNum > 10) continue;
+      var key = monitorName + ":" + wsNum;
       workspaceIndex[key] = {
-        id: finiteNumber(workspace.id, 0),
-        name: nameForWorkspace(workspace, number),
-        number: number,
+        id: finiteNumber(ws.id, 0),
+        name: nameForWorkspace(ws, wsNum),
+        number: wsNum,
         monitor: monitorName,
         exists: true,
         windows: [],
@@ -84,10 +91,32 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
       };
     }
 
-    var activeAddress = "";
+    // Determine target focused address
+    var targetFocusedAddress = "";
+    if (activeWindow && isWindowAddress(activeWindow.address)) {
+      targetFocusedAddress = String(activeWindow.address);
+    } else {
+      // Find client with focusHistoryID === 0 or lowest focusHistoryID
+      var minHistory = 2147483647;
+      for (var hi = 0; hi < clients.length; hi++) {
+        var cl = clients[hi];
+        if (!isObject(cl) || !isWindowAddress(cl.address)) continue;
+        if (cl.focused === true) {
+          targetFocusedAddress = String(cl.address);
+          break;
+        }
+        var hId = finiteNumber(cl.focusHistoryID, 2147483647);
+        if (hId < minHistory) {
+          minHistory = hId;
+          targetFocusedAddress = String(cl.address);
+        }
+      }
+    }
+
     var addresses = Object.create(null);
-    var focusedCount = 0;
     var windows = [];
+    var totalWindowCount = 0;
+
     for (var ci = 0; ci < clients.length; ci++) {
       var client = clients[ci];
       if (!isObject(client) || !isWindowAddress(client.address)) continue;
@@ -106,16 +135,15 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
         var workspaceMonitor = String(client.workspace.monitor || "");
         if (workspaceMonitor) clientMonitorName = workspaceMonitor;
       }
-      if (!clientMonitorName) continue;
-      if (!monitorByName[clientMonitorName]) continue;
+      if (!clientMonitorName || !monitorByName[clientMonitorName]) continue;
 
       var clientWorkspace = isObject(client.workspace) ? client.workspace : {};
       var clientMonitorIndex = monitorList.indexOf(monitorByName[clientMonitorName]);
       var clientNumber = localWorkspaceNumber(clientWorkspace, clientMonitorIndex);
       if (clientNumber < 1 || clientNumber > 10) continue;
 
-      var key = clientMonitorName + ":" + clientNumber;
-      var workspaceEntry = workspaceIndex[key];
+      var wsKey = clientMonitorName + ":" + clientNumber;
+      var workspaceEntry = workspaceIndex[wsKey];
       if (!workspaceEntry) {
         workspaceEntry = {
           id: finiteNumber(clientWorkspace.id, 0),
@@ -126,25 +154,37 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
           windows: [],
           active: false
         };
-        workspaceIndex[key] = workspaceEntry;
+        workspaceIndex[wsKey] = workspaceEntry;
       }
-      var focused = client.focused === true || (isObject(client.focused) && client.focused === true);
-      if (focused) {
-        focusedCount++;
-        activeAddress = address;
-      }
-      var window = {
+
+      var isFocused = (address === targetFocusedAddress);
+
+      var winItem = {
         address: address,
         class: String(client.class || ""),
         title: String(client.title || ""),
-        focused: focused,
+        focused: isFocused,
         focusHistoryID: finiteNumber(client.focusHistoryID, 2147483647),
         workspaceId: finiteNumber(clientWorkspace.id, workspaceEntry.id),
         workspaceNumber: clientNumber,
         monitor: clientMonitorName
       };
-      workspaceEntry.windows.push(window);
-      windows.push(window);
+      workspaceEntry.windows.push(winItem);
+      windows.push(winItem);
+      totalWindowCount++;
+    }
+
+    // Ensure exactly one window has focused: true if windows exist
+    var focusedWindow = null;
+    for (var wi = 0; wi < windows.length; wi++) {
+      if (windows[wi].focused) {
+        focusedWindow = windows[wi];
+        break;
+      }
+    }
+    if (!focusedWindow && windows.length > 0) {
+      windows[0].focused = true;
+      focusedWindow = windows[0];
     }
 
     var roots = [];
@@ -152,14 +192,13 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
     for (var ri = 0; ri < monitorList.length; ri++) {
       var rootMonitor = monitorList[ri];
       var activeWorkspace = isObject(rootMonitor.activeWorkspace) ? rootMonitor.activeWorkspace : null;
-      var rootMonitorIndex = ri;
       var activeNumber = activeWorkspace
-        ? localWorkspaceNumber(activeWorkspace, rootMonitorIndex)
+        ? localWorkspaceNumber(activeWorkspace, ri)
         : 0;
       var workspaceList = [];
       for (var number = 1; number <= 10; number++) {
-        var workspaceKey = rootMonitor.name + ":" + number;
-        var entry = workspaceIndex[workspaceKey] || {
+        var rwsKey = rootMonitor.name + ":" + number;
+        var entry = workspaceIndex[rwsKey] || {
           id: activeWorkspace && activeNumber === number ? finiteNumber(activeWorkspace.id, 0) : 0,
           name: String(number),
           number: number,
@@ -168,10 +207,18 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
           windows: [],
           active: activeNumber === number
         };
-        entry.active = activeNumber === number;
+        entry.active = (activeNumber === number);
         entry.windows.sort(function (a, b) {
           return a.focusHistoryID - b.focusHistoryID || a.title.localeCompare(b.title);
         });
+
+        // Compute labels preview for the mockup
+        var classes = [];
+        for (var k = 0; k < entry.windows.length; k++) {
+          if (entry.windows[k].class) classes.push(entry.windows[k].class);
+        }
+        entry.label = classes.length > 0 ? classes.join(" · ") : "empty";
+
         workspaceList.push(entry);
       }
       if (rootMonitor.focused) focusedMonitor = rootMonitor.name;
@@ -187,18 +234,10 @@ function buildSnapshot(monitorsJson, workspacesJson, clientsJson) {
       });
     }
 
-    var focusedWindow = null;
-    for (var fi = 0; fi < windows.length; fi++) {
-      if (windows[fi].focused) {
-        focusedWindow = windows[fi];
-        break;
-      }
-    }
-    if (!focusedWindow && windows.length > 0) focusedWindow = windows[0];
-
     return {
-      focusedMonitor: focusedMonitor || (focusedWindow ? focusedWindow.monitor : ""),
-      focusedAddress: focusedWindow ? focusedWindow.address : activeAddress,
+      focusedMonitor: focusedMonitor || (focusedWindow ? focusedWindow.monitor : (roots.length ? roots[0].monitor : "")),
+      focusedAddress: focusedWindow ? focusedWindow.address : "",
+      totalWindows: totalWindowCount,
       roots: roots
     };
   } catch (error) {
@@ -219,20 +258,23 @@ function isValidAddress(address) {
 function focusSequence(address, monitorName, workspaceId) {
   if (!isValidAddress(address)) return [];
   var monitor = typeof monitorName === "string" ? monitorName : "";
-  var workspace = finiteNumber(workspaceId, 0);
-  var direct = [
-    { mode: "lua", command: ["sh", "-c",
-      'out=$(hyprctl dispatch "hl.dsp.focus({ window = \\"address:$1\\" })" 2>&1); '
-      + '[ "$out" = ok ] || hyprctl dispatch focuswindow "address:$1" >/dev/null 2>&1',
-      "omarchy-tree", address] },
-    { mode: "legacy", command: ["hyprctl", "dispatch", "focuswindow", "address:" + address] }
+  return [
+    {
+      mode: "lua",
+      command: ["hyprctl", "dispatch", 'hl.dsp.focus({ window = "address:' + address + '" })']
+    },
+    {
+      mode: "legacy",
+      command: ["hyprctl", "dispatch", "focuswindow", "address:" + address]
+    },
+    {
+      mode: "fallback",
+      command: [
+        "sh", "-c",
+        'hyprctl dispatch "hl.dsp.focus({ monitor = \\"$1\\" })" >/dev/null 2>&1; '
+        + 'hyprctl dispatch "hl.dsp.focus({ window = \\"address:$2\\" })" >/dev/null 2>&1',
+        "omarchy-tree", monitor, address
+      ]
+    }
   ];
-  if (!monitor || workspace <= 0) return direct;
-  return direct.concat([
-    { mode: "fallback", command: ["sh", "-c",
-      'hyprctl dispatch focusmonitor "$1" >/dev/null 2>&1 && '
-      + 'hyprctl dispatch workspace "$2" >/dev/null 2>&1 && '
-      + 'hyprctl dispatch focuswindow "address:$3" >/dev/null 2>&1',
-      "omarchy-tree", monitor, String(workspace), address] }
-  ]);
 }
