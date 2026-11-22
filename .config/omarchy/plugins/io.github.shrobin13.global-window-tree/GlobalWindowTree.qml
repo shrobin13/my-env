@@ -639,7 +639,7 @@ Item {
             return
           }
 
-          if (event.text === "q") {
+          if (event.key === Qt.Key_Q || event.text.toLowerCase() === "q") {
             root.close()
             event.accepted = true
             return
@@ -647,35 +647,7 @@ Item {
 
           if (root.searchMode) return
 
-          if (event.text === "n") {
-            if (root.searchText.length > 0) {
-              root.nextMatch()
-            }
-            event.accepted = true
-          } else if (event.text === "N") {
-            if (root.searchText.length > 0) {
-              root.prevMatch()
-            }
-            event.accepted = true
-          } else if (event.text === "j" || event.key === Qt.Key_Down) {
-            root.move(1)
-            event.accepted = true
-          } else if (event.text === "k" || event.key === Qt.Key_Up) {
-            root.move(-1)
-            event.accepted = true
-          } else if (event.text === "h" || event.key === Qt.Key_Left) {
-            root.handleKeyH()
-            event.accepted = true
-          } else if (event.text === "l" || event.key === Qt.Key_Right) {
-            root.handleKeyL()
-            event.accepted = true
-          } else if (event.text === "/") {
-            root.enterSearch()
-            event.accepted = true
-          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-            root.focusCurrent()
-            event.accepted = true
-          } else if (event.modifiers & Qt.ControlModifier) {
+          if (event.modifiers & Qt.ControlModifier) {
             if (event.key === Qt.Key_H || event.key === Qt.Key_Left || event.text === "\u0008") {
               if (root.treeState) {
                 Tree.prevMonitor(root.treeState)
@@ -695,7 +667,41 @@ Item {
               root.move(5)
               event.accepted = true
             }
-          } else if (event.text === "g") {
+            return
+          }
+
+          if (event.key === Qt.Key_Down || event.key === Qt.Key_J || event.text.toLowerCase() === "j") {
+            root.move(1)
+            event.accepted = true
+          } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K || event.text.toLowerCase() === "k") {
+            root.move(-1)
+            event.accepted = true
+          } else if (event.key === Qt.Key_Left || event.key === Qt.Key_H || event.text.toLowerCase() === "h") {
+            root.handleKeyH()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L || event.text.toLowerCase() === "l") {
+            root.handleKeyL()
+            event.accepted = true
+          } else if (event.text === "n" || (event.key === Qt.Key_N && !(event.modifiers & Qt.ShiftModifier))) {
+            if (root.searchText.length > 0) {
+              root.nextMatch()
+            }
+            event.accepted = true
+          } else if (event.text === "N" || (event.key === Qt.Key_N && (event.modifiers & Qt.ShiftModifier))) {
+            if (root.searchText.length > 0) {
+              root.prevMatch()
+            }
+            event.accepted = true
+          } else if (event.text === "/") {
+            root.enterSearch()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            root.focusCurrent()
+            event.accepted = true
+          } else if (event.key === Qt.Key_G && (event.modifiers & Qt.ShiftModifier)) {
+            if (root.treeState) root.setCursor(Tree.lastSelectable(root.treeState))
+            event.accepted = true
+          } else if (event.text === "g" || event.key === Qt.Key_G) {
             if (root.gPending) {
               if (root.treeState) root.setCursor(Tree.firstSelectable(root.treeState))
               root.gPending = false
@@ -703,9 +709,6 @@ Item {
               root.gPending = true
               gTimer.restart()
             }
-            event.accepted = true
-          } else if (event.text === "G") {
-            if (root.treeState) root.setCursor(Tree.lastSelectable(root.treeState))
             event.accepted = true
           } else if (event.key === Qt.Key_Backtab) {
             if (root.treeState) {
