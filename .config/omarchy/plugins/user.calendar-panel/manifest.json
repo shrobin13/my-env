@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "user.calendar-panel",
+  "name": "Calendar Panel & Bar",
+  "version": "1.0.0",
+  "author": "Sheikh Robin",
+  "description": "Redesigned floating top bar and calendar popup panel with month grid, agenda, timer, and focus controls.",
+  "kinds": [
+    "bar"
+  ],
+  "entryPoints": {
+    "bar": "Bar.qml"
+  }
+}

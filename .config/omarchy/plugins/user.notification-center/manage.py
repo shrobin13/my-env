@@ -283,7 +283,58 @@ def desktop_launcher_id(app):
     return ""
 
 
-def focus_notification_window(app, sender_pid=0):
+def _hyprctl_dispatch_ok(arg):
+    res = subprocess.run(
+        ["hyprctl", "dispatch", arg],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    out = (res.stdout or "").strip().lower()
+    return res.returncode == 0 and (out == "" or out == "ok")
+
+
+def _focus_client(client):
+    address = str(client.get("address") or "")
+    if not re.fullmatch(r"0x[0-9a-f]+", address, re.IGNORECASE):
+        return False
+
+    ws = client.get("workspace")
+    ws_id = ws.get("id") if isinstance(ws, dict) else None
+    if isinstance(ws_id, int) and ws_id > 0:
+        if not _hyprctl_dispatch_ok(f'hl.dsp.focus({{ workspace = "{ws_id}" }})'):
+            _hyprctl_dispatch_ok(f"workspace {ws_id}")
+
+    if _hyprctl_dispatch_ok(f'hl.dsp.focus({{ window = "address:{address}" }})'):
+        return True
+    return _hyprctl_dispatch_ok(f"focuswindow address:{address}")
+
+
+def _match_app_client(clients, app):
+    words = re.findall(r"[a-z0-9]+", str(app or "").lower())
+    if not words:
+        return []
+    slug = "".join(words)
+    tail = "." + ".".join(words) if len(words) > 1 else ""
+    aliases = {slug}
+    if "chrome" in words or "chromium" in words:
+        aliases.update(["googlechrome", "chromium", "chrome", "bravebrowser"])
+    matched = []
+    for client in clients:
+        identities = [
+            str(client.get("class") or "").lower(),
+            str(client.get("initialClass") or "").lower(),
+        ]
+        for identity in identities:
+            norm = re.sub(r"[^a-z0-9]+", "", identity)
+            dotted = "." + re.sub(r"[^a-z0-9]+", ".", identity)
+            if norm in aliases or identity == slug or (tail and dotted.endswith(tail)):
+                matched.append(client)
+                break
+    return matched
+
+
+def focus_notification_window(app, sender_pid=0, title_hint=""):
     try:
         result = subprocess.run(
             ["hyprctl", "clients", "-j"],
@@ -309,43 +360,23 @@ def focus_notification_window(app, sender_pid=0):
     if pid > 0:
         candidates = [client for client in clients if client.get("pid") == pid]
 
-    if not candidates:
-        words = re.findall(r"[a-z0-9]+", str(app or "").lower())
-        slug = "".join(words)
-        tail = "." + ".".join(words) if len(words) > 1 else ""
-        for client in clients:
-            identities = [
-                str(client.get("class") or "").lower(),
-                str(client.get("initialClass") or "").lower(),
+    if not candidates and title_hint:
+        needle = str(title_hint).strip().lower()
+        if needle:
+            candidates = [
+                client for client in clients
+                if needle in str(client.get("title") or "").lower()
             ]
-            for identity in identities:
-                dotted = "." + re.sub(r"[^a-z0-9]+", ".", identity)
-                if identity == slug or (tail and dotted.endswith(tail)):
-                    candidates.append(client)
-                    break
+
+    if not candidates:
+        candidates = _match_app_client(clients, app)
 
     if not candidates:
         return False
 
-    candidates.sort(key=lambda client: int(client.get("focusHistoryID", -1)))
-    address = str(candidates[-1].get("address") or "")
-    if not re.fullmatch(r"0x[0-9a-f]+", address, re.IGNORECASE):
-        return False
-
-    focused = subprocess.run(
-        ["hyprctl", "dispatch", f'hl.dsp.focus({{ window = "address:{address}" }})'],
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    if focused.returncode != 0:
-        focused = subprocess.run(
-            ["hyprctl", "dispatch", "focuswindow", f"address:{address}"],
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    return focused.returncode == 0
+    # Lower focusHistoryID means more recently focused (0 is active).
+    candidates.sort(key=lambda client: int(client.get("focusHistoryID", 999999)))
+    return _focus_client(candidates[0])
 
 
 def run_action(key, action_id=""):
@@ -495,6 +526,14 @@ def main():
         run_action(key, act_id)
     elif cmd == "send-test":
         send_test()
+    elif cmd == "focus-app":
+        args = sys.argv[2:]
+        if args[:1] == ["--"]:
+            args = args[1:]
+        app_name = args[0] if args else ""
+        title_hint = args[1] if len(args) > 1 else ""
+        if app_name or title_hint:
+            focus_notification_window(app_name, 0, title_hint)
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

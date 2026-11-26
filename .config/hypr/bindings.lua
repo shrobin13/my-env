@@ -58,9 +58,25 @@ o.bind("SUPER + CTRL + ALT + K", "Show key bindings", "omarchy-menu-keybindings"
 o.bind("SUPER + SHIFT + V", "Window tree",
   "omarchy-shell -q shell toggle io.github.shrobin13.global-window-tree")
 
+-- =========================================================
+-- CALENDAR PANEL & TOP BAR
+-- =========================================================
+o.bind("SUPER + ALT + C", "Toggle calendar panel",
+  "omarchy-shell -q user.calendar-panel toggle")
+o.bind("SUPER + ALT + B", "Toggle bar style (custom / stock)",
+  "toggle-bar-style")
+
 hl.layer_rule({
   name = "global-window-tree-blur",
   match = { namespace = "^global-window-tree$" },
+  blur = true,
+  ignore_alpha = 0.5,
+  no_anim = true,
+})
+
+hl.layer_rule({
+  name = "user-notification-center-backdrop-blur",
+  match = { namespace = "^user-notification-center-backdrop$" },
   blur = true,
   ignore_alpha = 0.5,
   no_anim = true,

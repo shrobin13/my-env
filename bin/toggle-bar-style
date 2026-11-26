@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Toggle between the redesigned Calendar Panel bar and the stock Omarchy bar
+set -euo pipefail
+
+CONFIG_FILE="$HOME/.config/omarchy/shell.json"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "shell.json not found at $CONFIG_FILE" >&2
+  exit 1
+fi
+
+current_bar=$(jq -r '.bar.id // "omarchy.bar"' "$CONFIG_FILE")
+
+if [[ "$current_bar" == "user.calendar-panel" ]]; then
+  # Switch to stock bar
+  tmp=$(mktemp)
+  jq 'del(.bar.id)' "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+  label="Active: Stock Omarchy Bar"
+  echo "Switched to stock Omarchy bar"
+else
+  # Switch to new custom bar
+  tmp=$(mktemp)
+  jq '.bar.id = "user.calendar-panel"' "$CONFIG_FILE" > "$tmp" && mv "$tmp" "$CONFIG_FILE"
+  label="Active: Redesigned Calendar Panel Bar"
+  echo "Switched to custom Calendar Panel bar"
+fi
+
+if command -v omarchy >/dev/null 2>&1; then
+  omarchy restart shell
+fi
+
+if command -v notify-send >/dev/null 2>&1; then
+  notify-send -a "Omarchy Bar" -t 2000 "Bar Style Switched" "$label" || true
+fi

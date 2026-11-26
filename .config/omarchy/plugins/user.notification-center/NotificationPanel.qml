@@ -3,6 +3,8 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -21,6 +23,7 @@ Item {
   property bool rawNotificationsLoaded: false
   property var userState: Model.defaultUserState()
   property string activeFilter: "All"
+  property string activeAppFilter: ""
   property string searchQuery: ""
   property var expandedApps: ({})
 
@@ -94,14 +97,25 @@ Item {
   }
 
   // Filtered & grouped items
-  readonly property var filteredList: Model.filterNotifications(
-    panelRoot.activeNotifications,
-    panelRoot.userState,
-    panelRoot.activeFilter,
-    panelRoot.searchQuery,
-    panelRoot.filterEpochSec,
-    panelRoot.unreadAtOpen
-  )
+  readonly property var filteredList: {
+    var base = Model.filterNotifications(
+      panelRoot.activeNotifications,
+      panelRoot.userState,
+      panelRoot.activeFilter,
+      panelRoot.searchQuery,
+      panelRoot.filterEpochSec,
+      panelRoot.unreadAtOpen
+    )
+    if (!panelRoot.activeAppFilter) return base
+    var targetApp = String(panelRoot.activeAppFilter).toLowerCase()
+    var out = []
+    for (var i = 0; i < base.length; i++) {
+      if (base[i] && String(base[i].app || "").toLowerCase() === targetApp) {
+        out.push(base[i])
+      }
+    }
+    return out
+  }
 
   readonly property var displayList: Model.groupNotifications(filteredList, expandedApps)
 
@@ -250,6 +264,159 @@ Item {
   Commons.Translations {
     id: strings
     directory: Qt.resolvedUrl("i18n")
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUDIO VOLUME / MUTE & QUICK TOGGLES
+  // ---------------------------------------------------------------------------
+  readonly property var audioSink: Pipewire.defaultAudioSink
+  readonly property bool audioMuted: !!(audioSink && audioSink.audio && audioSink.audio.muted)
+  readonly property real audioVolume: (audioSink && audioSink.audio && typeof audioSink.audio.volume === "number") ? audioSink.audio.volume : 0
+
+  PwObjectTracker {
+    objects: panelRoot.audioSink ? [panelRoot.audioSink] : []
+  }
+
+  function toggleAudioMute() {
+    if (!audioSink || !audioSink.audio) return
+    audioSink.audio.muted = !audioSink.audio.muted
+  }
+
+  function adjustAudioVolume(delta) {
+    if (!audioSink || !audioSink.audio) return
+    var next = Math.max(0, Math.min(1.5, Number(audioSink.audio.volume || 0) + delta))
+    audioSink.audio.volume = next
+    if (next > 0 && audioSink.audio.muted) audioSink.audio.muted = false
+  }
+
+  function runQuickManage(action) {
+    var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
+    Quickshell.execDetached(["python3", script, action])
+  }
+
+  // ---------------------------------------------------------------------------
+  // MEDIA PREVIEW (MPRIS / YouTube / Music Players)
+  // ---------------------------------------------------------------------------
+  property string preferredPlayerId: ""
+  property real mediaPosition: 0
+
+  readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
+  readonly property var mediaPlayers: {
+    var real = []
+    var proxies = []
+    for (var i = 0; i < mprisPlayers.length; i++) {
+      var p = mprisPlayers[i]
+      if (!p || !(p.trackTitle || p.trackArtist)) continue
+      var id = String(p.dbusName || p.identity || "")
+      if (id.indexOf("playerctld") !== -1) proxies.push(p)
+      else real.push(p)
+    }
+    var list = real.length > 0 ? real : proxies
+    list.sort(function(a, b) {
+      if (!!a.isPlaying !== !!b.isPlaying) return a.isPlaying ? -1 : 1
+      return String(a.identity || "").localeCompare(String(b.identity || ""))
+    })
+    return list
+  }
+
+  readonly property var activeMediaPlayer: {
+    var list = mediaPlayers
+    if (list.length === 0) return null
+    if (preferredPlayerId) {
+      for (var i = 0; i < list.length; i++) {
+        var pid = String(list[i].dbusName || list[i].identity || "")
+        if (pid === preferredPlayerId) return list[i]
+      }
+    }
+    return list[0]
+  }
+
+  readonly property bool hasMedia: activeMediaPlayer !== null && !!(activeMediaPlayer.trackTitle || activeMediaPlayer.trackArtist)
+
+  onActiveMediaPlayerChanged: {
+    mediaPosition = activeMediaPlayer && activeMediaPlayer.positionSupported ? Number(activeMediaPlayer.position || 0) : 0
+  }
+
+  Timer {
+    id: mediaProgressTimer
+    interval: 1000
+    repeat: true
+    running: panelRoot.panelOpened && panelRoot.hasMedia && !!panelRoot.activeMediaPlayer.isPlaying && !!panelRoot.activeMediaPlayer.positionSupported && Number(panelRoot.activeMediaPlayer.length || 0) > 0
+    triggeredOnStart: true
+    onTriggered: {
+      if (panelRoot.activeMediaPlayer && panelRoot.activeMediaPlayer.positionSupported) {
+        panelRoot.mediaPosition = Number(panelRoot.activeMediaPlayer.position || 0)
+      }
+    }
+  }
+
+  function formatMediaTime(seconds) {
+    var s = Math.max(0, Math.floor(Number(seconds) || 0))
+    var h = Math.floor(s / 3600)
+    var m = Math.floor((s % 3600) / 60)
+    var rem = s % 60
+    var rStr = rem < 10 ? ("0" + rem) : String(rem)
+    if (h > 0) {
+      var mStr = m < 10 ? ("0" + m) : String(m)
+      return h + ":" + mStr + ":" + rStr
+    }
+    return m + ":" + rStr
+  }
+
+  function toggleMediaPlayback() {
+    var p = activeMediaPlayer
+    if (!p) return
+    if (p.canTogglePlaying) p.togglePlaying()
+    else if (p.isPlaying && p.canPause) p.pause()
+    else if (!p.isPlaying && p.canPlay) p.play()
+  }
+
+  function focusMediaPlayer() {
+    var p = activeMediaPlayer
+    if (!p) return
+    if (p.canRaise) p.raise()
+    var appHint = String(p.desktopEntry || p.identity || "").trim()
+    var titleHint = String(p.trackTitle || "").trim()
+    if (appHint || titleHint) {
+      var script = Quickshell.env("HOME") + "/.config/omarchy/plugins/user.notification-center/manage.py"
+      Quickshell.execDetached(["python3", script, "focus-app", "--", appHint, titleHint])
+    }
+    panelRoot.closeRequested()
+  }
+
+  function cycleMediaPlayer() {
+    var list = mediaPlayers
+    if (list.length < 2) return
+    var curId = activeMediaPlayer ? String(activeMediaPlayer.dbusName || activeMediaPlayer.identity || "") : ""
+    var idx = 0
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].dbusName || list[i].identity || "") === curId) {
+        idx = (i + 1) % list.length
+        break
+      }
+    }
+    preferredPlayerId = String(list[idx].dbusName || list[idx].identity || "")
+  }
+
+  function markAllRead() {
+    var rk = Object.assign({}, panelRoot.userState.readKeys || {})
+    var changed = false
+    for (var i = 0; i < panelRoot.activeNotifications.length; i++) {
+      var k = panelRoot.activeNotifications[i].key
+      if (k && !rk[k]) {
+        rk[k] = true
+        changed = true
+      }
+    }
+    panelRoot.unreadAtOpen = ({})
+    if (changed) {
+      panelRoot.userState.readKeys = rk
+      for (var j = 0; j < notifListModel.count; j++) {
+        if (!notifListModel.get(j).isRead) notifListModel.setProperty(j, "isRead", true)
+      }
+      panelRoot.userStateChanged()
+      panelRoot.saveState()
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -815,6 +982,30 @@ Item {
       }
     } else if (text === "u") {
       if (panelRoot.undoVisible) panelRoot.performUndo()
+    } else if (text === "m") {
+      panelRoot.markAllRead()
+    } else if (text === "c") {
+      var curCopy = notifListView.itemAtIndex(notifListView.currentIndex)
+      if (curCopy && typeof curCopy.copyPrimaryText === "function") {
+        var copied = curCopy.copyPrimaryText()
+        if (copied) {
+          panelRoot.undoMessage = strings.t("copiedText")
+          panelRoot.undoAction = "info"
+          panelRoot.undoVisible = true
+          undoTimer.restart()
+        }
+      }
+    } else if (text === "o") {
+      var curOpen = notifListView.itemAtIndex(notifListView.currentIndex)
+      if (curOpen && typeof curOpen.openPrimaryLink === "function") {
+        curOpen.openPrimaryLink()
+      }
+    } else if (text === "a") {
+      var itA = notifListModel.get(notifListView.currentIndex)
+      var fullA = itA && itA.key ? panelRoot.notifDataByKey[itA.key] : null
+      if (fullA && fullA.app) panelRoot.toggleGroup(fullA.app)
+    } else if (text === " ") {
+      if (panelRoot.hasMedia) panelRoot.toggleMediaPlayback()
     } else if (text === "g") {
       if (panelRoot.gPending) {
         panelRoot.jumpToFirst()
@@ -1049,6 +1240,44 @@ Item {
         }
       }
 
+      // Mark All Read Button (Shown when there are unread notifications)
+      Rectangle {
+        id: markReadBtn
+        visible: panelRoot.countUnread > 0
+        Layout.preferredWidth: Style.space(32)
+        Layout.preferredHeight: Style.space(32)
+        radius: Style.space(8)
+        scale: markReadMouse.pressed ? 0.95 : (markReadMouse.containsMouse ? 1.02 : 1.0)
+        Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+
+        color: markReadMouse.pressed
+          ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.25)
+          : (markReadMouse.containsMouse ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.16) : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.08))
+        border.color: markReadMouse.containsMouse
+          ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.5)
+          : panelRoot.subtleBorder
+        border.width: 1
+
+        Text {
+          anchors.centerIn: parent
+          textFormat: Text.PlainText
+          text: "\uf560"
+          font.family: Style.font.family
+          font.pixelSize: Style.space(12)
+          color: markReadMouse.containsMouse ? Commons.Color.accent : panelRoot.dimColor
+        }
+
+        MouseArea {
+          id: markReadMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: panelRoot.markAllRead()
+          onEntered: if (panelRoot.bar) panelRoot.bar.showTooltip(markReadBtn, strings.t("markAllRead"))
+          onExited: if (panelRoot.bar) panelRoot.bar.hideTooltip(markReadBtn)
+        }
+      }
+
       // Clear All / Clear Shown Button
       Rectangle {
         id: clearBtn
@@ -1105,6 +1334,324 @@ Item {
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
           onClicked: panelRoot.clearVisibleNonPinned()
+        }
+      }
+    }
+
+    // ==================== SECTION 1.5: MEDIA / MUSIC PREVIEW ====================
+    Rectangle {
+      id: mediaCard
+      visible: panelRoot.hasMedia
+      Layout.fillWidth: true
+      implicitHeight: mediaCardCol.implicitHeight + Style.space(16)
+      radius: Style.space(10)
+      color: mediaCardMouse.containsMouse
+        ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.12)
+        : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.07)
+      border.color: panelRoot.activeMediaPlayer && panelRoot.activeMediaPlayer.isPlaying
+        ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.38)
+        : panelRoot.subtleBorder
+      border.width: 1
+
+      MouseArea {
+        id: mediaCardMouse
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: panelRoot.focusMediaPlayer()
+        onWheel: function(wheel) {
+          if (wheel.angleDelta.y > 0) panelRoot.adjustAudioVolume(0.05)
+          else if (wheel.angleDelta.y < 0) panelRoot.adjustAudioVolume(-0.05)
+        }
+      }
+
+      ColumnLayout {
+        id: mediaCardCol
+        anchors.fill: parent
+        anchors.margins: Style.space(8)
+        spacing: Style.space(8)
+
+        RowLayout {
+          Layout.fillWidth: true
+          spacing: Style.space(10)
+
+          // Album / YouTube thumbnail
+          Rectangle {
+            Layout.preferredWidth: Style.space(48)
+            Layout.preferredHeight: Style.space(48)
+            radius: Style.space(6)
+            clip: true
+            color: Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.08)
+            border.color: panelRoot.subtleBorder
+            border.width: 1
+
+            SizedImage {
+              anchors.fill: parent
+              crop: true
+              url: panelRoot.activeMediaPlayer && panelRoot.activeMediaPlayer.trackArtUrl ? String(panelRoot.activeMediaPlayer.trackArtUrl) : ""
+              visible: url !== ""
+            }
+
+            Text {
+              anchors.centerIn: parent
+              visible: !panelRoot.activeMediaPlayer || !panelRoot.activeMediaPlayer.trackArtUrl
+              textFormat: Text.PlainText
+              text: "󰝚"
+              font.family: Style.font.family
+              font.pixelSize: Style.space(20)
+              color: Commons.Color.accent
+            }
+          }
+
+          // Track metadata
+          ColumnLayout {
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            spacing: Style.space(2)
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Text {
+                Layout.fillWidth: true
+                textFormat: Text.PlainText
+                text: panelRoot.activeMediaPlayer ? String(panelRoot.activeMediaPlayer.trackTitle || strings.t("nowPlaying")) : ""
+                font.family: Style.font.family
+                font.pixelSize: Math.max(12, Style.font.body)
+                font.bold: true
+                color: panelRoot.foreground
+                elide: Text.ElideRight
+              }
+
+              // Player source / switcher badge
+              Rectangle {
+                visible: panelRoot.activeMediaPlayer !== null
+                height: Style.space(18)
+                implicitWidth: sourceBadgeRow.implicitWidth + Style.space(10)
+                radius: height / 2
+                color: panelRoot.mediaPlayers.length > 1 && sourceSwitchMouse.containsMouse
+                  ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.22)
+                  : Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.09)
+
+                Row {
+                  id: sourceBadgeRow
+                  anchors.centerIn: parent
+                  spacing: Style.space(4)
+
+                  Text {
+                    textFormat: Text.PlainText
+                    text: panelRoot.activeMediaPlayer ? String(panelRoot.activeMediaPlayer.identity || panelRoot.activeMediaPlayer.desktopEntry || "Media") : ""
+                    font.family: Style.font.family
+                    font.pixelSize: Style.space(9)
+                    font.bold: true
+                    color: panelRoot.mediaPlayers.length > 1 ? Commons.Color.accent : panelRoot.dimColor
+                  }
+
+                  Text {
+                    visible: panelRoot.mediaPlayers.length > 1
+                    textFormat: Text.PlainText
+                    text: "⇄"
+                    font.family: Style.font.family
+                    font.pixelSize: Style.space(9)
+                    color: Commons.Color.accent
+                  }
+                }
+
+                MouseArea {
+                  id: sourceSwitchMouse
+                  anchors.fill: parent
+                  enabled: panelRoot.mediaPlayers.length > 1
+                  hoverEnabled: panelRoot.mediaPlayers.length > 1
+                  cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: panelRoot.cycleMediaPlayer()
+                }
+              }
+            }
+
+            Text {
+              Layout.fillWidth: true
+              visible: text !== ""
+              textFormat: Text.PlainText
+              text: panelRoot.activeMediaPlayer ? String(panelRoot.activeMediaPlayer.trackArtist || panelRoot.activeMediaPlayer.trackAlbum || "") : ""
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              color: panelRoot.dimColor
+              elide: Text.ElideRight
+            }
+
+            // Transport controls
+            RowLayout {
+              Layout.fillWidth: true
+              Layout.topMargin: Style.space(2)
+              spacing: Style.space(4)
+
+              // Previous
+              Rectangle {
+                width: Style.space(26)
+                height: Style.space(24)
+                radius: Style.space(5)
+                readonly property bool canAct: !!panelRoot.activeMediaPlayer && !!panelRoot.activeMediaPlayer.canGoPrevious
+                opacity: canAct ? 1.0 : 0.35
+                color: prevMouse.containsMouse && canAct ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.14) : "transparent"
+
+                Text {
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: "󰒮"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.space(13)
+                  color: panelRoot.foreground
+                }
+
+                MouseArea {
+                  id: prevMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  enabled: parent.canAct
+                  cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: if (panelRoot.activeMediaPlayer) panelRoot.activeMediaPlayer.previous()
+                }
+              }
+
+              // Play / Pause
+              Rectangle {
+                width: Style.space(30)
+                height: Style.space(24)
+                radius: Style.space(5)
+                readonly property bool canAct: !!panelRoot.activeMediaPlayer && (!!panelRoot.activeMediaPlayer.canTogglePlaying || !!panelRoot.activeMediaPlayer.canPlay || !!panelRoot.activeMediaPlayer.canPause)
+                opacity: canAct ? 1.0 : 0.35
+                color: playMouse.containsMouse && canAct
+                  ? Commons.Color.accent
+                  : Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.22)
+
+                Text {
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: panelRoot.activeMediaPlayer && panelRoot.activeMediaPlayer.isPlaying ? "󰏤" : "󰐊"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.space(13)
+                  color: playMouse.containsMouse && parent.canAct ? Commons.Color.background : Commons.Color.accent
+                }
+
+                MouseArea {
+                  id: playMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  enabled: parent.canAct
+                  cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: panelRoot.toggleMediaPlayback()
+                }
+              }
+
+              // Next
+              Rectangle {
+                width: Style.space(26)
+                height: Style.space(24)
+                radius: Style.space(5)
+                readonly property bool canAct: !!panelRoot.activeMediaPlayer && !!panelRoot.activeMediaPlayer.canGoNext
+                opacity: canAct ? 1.0 : 0.35
+                color: nextMouse.containsMouse && canAct ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.14) : "transparent"
+
+                Text {
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: "󰒭"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.space(13)
+                  color: panelRoot.foreground
+                }
+
+                MouseArea {
+                  id: nextMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  enabled: parent.canAct
+                  cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                  onClicked: if (panelRoot.activeMediaPlayer) panelRoot.activeMediaPlayer.next()
+                }
+              }
+
+              Item { Layout.fillWidth: true }
+
+              // Volume / Mute toggle on Music Card
+              Rectangle {
+                visible: panelRoot.audioSink !== null
+                width: Style.space(26)
+                height: Style.space(24)
+                radius: Style.space(5)
+                color: muteMediaMouse.containsMouse ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.14) : "transparent"
+
+                Text {
+                  anchors.centerIn: parent
+                  textFormat: Text.PlainText
+                  text: panelRoot.audioMuted ? "󰝟" : "󰕾"
+                  font.family: Style.font.family
+                  font.pixelSize: Style.space(13)
+                  color: panelRoot.audioMuted ? Commons.Color.urgent : panelRoot.dimColor
+                }
+
+                MouseArea {
+                  id: muteMediaMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: panelRoot.toggleAudioMute()
+                }
+              }
+
+              Text {
+                visible: !!panelRoot.activeMediaPlayer && !!panelRoot.activeMediaPlayer.positionSupported && Number(panelRoot.activeMediaPlayer.length || 0) > 0
+                textFormat: Text.PlainText
+                text: panelRoot.activeMediaPlayer
+                  ? (panelRoot.formatMediaTime(panelRoot.mediaPosition) + " / " + panelRoot.formatMediaTime(panelRoot.activeMediaPlayer.length))
+                  : ""
+                font.family: Style.font.family
+                font.pixelSize: Style.space(10)
+                color: panelRoot.dimColor
+              }
+            }
+          }
+        }
+
+        // Seekable progress bar (when track length is reported)
+        Rectangle {
+          id: mediaSeekTrack
+          visible: !!panelRoot.activeMediaPlayer && !!panelRoot.activeMediaPlayer.positionSupported && Number(panelRoot.activeMediaPlayer.length || 0) > 0
+          Layout.fillWidth: true
+          height: Style.space(4)
+          radius: height / 2
+          color: Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.14)
+
+          readonly property real progressRatio: {
+            var len = panelRoot.activeMediaPlayer ? Number(panelRoot.activeMediaPlayer.length || 0) : 0
+            if (len <= 0) return 0
+            return Math.max(0, Math.min(1, panelRoot.mediaPosition / len))
+          }
+
+          Rectangle {
+            width: parent.width * parent.progressRatio
+            height: parent.height
+            radius: parent.radius
+            color: Commons.Color.accent
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            anchors.topMargin: -Style.space(4)
+            anchors.bottomMargin: -Style.space(4)
+            enabled: !!panelRoot.activeMediaPlayer && !!panelRoot.activeMediaPlayer.canSeek && Number(panelRoot.activeMediaPlayer.length || 0) > 0
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: function(mouse) {
+              if (!panelRoot.activeMediaPlayer || !panelRoot.activeMediaPlayer.canSeek) return
+              var len = Number(panelRoot.activeMediaPlayer.length || 0)
+              if (len <= 0 || width <= 0) return
+              var ratio = Math.max(0, Math.min(1, mouse.x / width))
+              var targetPos = ratio * len
+              panelRoot.activeMediaPlayer.position = targetPos
+              panelRoot.mediaPosition = targetPos
+            }
+          }
         }
       }
     }
@@ -1237,6 +1784,48 @@ Item {
       Row {
         id: chipRow
         spacing: Style.space(8)
+
+        // Active App Filter Chip (when filtering by clicking an app name)
+        Rectangle {
+          visible: panelRoot.activeAppFilter !== ""
+          height: Style.space(26)
+          implicitWidth: appFilterRow.implicitWidth + Style.space(14)
+          radius: height / 2
+          color: Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.22)
+          border.color: Commons.Color.accent
+          border.width: 1
+
+          Row {
+            id: appFilterRow
+            anchors.centerIn: parent
+            spacing: Style.space(5)
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: panelRoot.activeAppFilter
+              font.family: Style.font.family
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              color: Commons.Color.accent
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: "\uf00d"
+              font.family: Style.font.family
+              font.pixelSize: Style.space(9)
+              color: Commons.Color.accent
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: panelRoot.activeAppFilter = ""
+          }
+        }
 
         Repeater {
           model: [
@@ -1411,6 +2000,71 @@ Item {
           onPinToggled: function(k) { panelRoot.togglePin(k) }
           onMuteAppRequested: function(app) { panelRoot.muteApp(app) }
           onGroupToggleRequested: function(app) { panelRoot.toggleGroup(app) }
+          onAppFilterRequested: function(app) {
+            panelRoot.activeAppFilter = (panelRoot.activeAppFilter === app) ? "" : app
+          }
+        }
+      }
+    }
+
+    // ==================== SECTION 4.5: QUICK TOGGLES ====================
+    RowLayout {
+      Layout.fillWidth: true
+      spacing: Style.space(6)
+
+      Repeater {
+        model: [
+          { icon: "󰖔", label: strings.t("nightLight"), action: "toggle-nightlight" },
+          { icon: "󰅶", label: strings.t("keepAwake"), action: "toggle-idle" },
+          { icon: "󰄀", label: strings.t("snip"), action: "snip" },
+          { icon: "󰅌", label: strings.t("clipboard"), action: "clipboard" }
+        ]
+
+        Rectangle {
+          id: qtBtn
+          required property var modelData
+          Layout.fillWidth: true
+          height: Style.space(30)
+          radius: Style.space(7)
+          scale: qtMouse.pressed ? 0.96 : 1.0
+          Behavior on scale { NumberAnimation { duration: Style.duration(70); easing.type: Easing.OutQuad } }
+          color: qtMouse.pressed
+            ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.24)
+            : (qtMouse.containsMouse ? Qt.rgba(panelRoot.foreground.r, panelRoot.foreground.g, panelRoot.foreground.b, 0.12) : panelRoot.subtleBg)
+          border.color: qtMouse.containsMouse ? Qt.rgba(Commons.Color.accent.r, Commons.Color.accent.g, Commons.Color.accent.b, 0.45) : panelRoot.subtleBorder
+          border.width: 1
+
+          Row {
+            anchors.centerIn: parent
+            spacing: Style.space(5)
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: qtBtn.modelData.icon
+              font.family: Style.font.family
+              font.pixelSize: Style.space(12)
+              color: qtMouse.containsMouse ? Commons.Color.accent : panelRoot.dimColor
+            }
+
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              textFormat: Text.PlainText
+              text: qtBtn.modelData.label
+              font.family: Style.font.family
+              font.pixelSize: Style.space(10)
+              font.bold: true
+              color: qtMouse.containsMouse ? panelRoot.foreground : panelRoot.dimColor
+            }
+          }
+
+          MouseArea {
+            id: qtMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: panelRoot.runQuickManage(qtBtn.modelData.action)
+          }
         }
       }
     }
@@ -1448,6 +2102,7 @@ Item {
         Item { Layout.fillWidth: true }
 
         Rectangle {
+          visible: panelRoot.undoAction !== "info"
           height: Style.space(24)
           implicitWidth: undoLabel.implicitWidth + Style.space(16)
           radius: Style.space(4)

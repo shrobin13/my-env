@@ -14,6 +14,8 @@ NOTIFICATION_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/user.notification-cen
 NOTIFICATION_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/user.notification-center"
 TREE_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/io.github.shrobin13.global-window-tree"
 TREE_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/io.github.shrobin13.global-window-tree"
+CALENDAR_PLUGIN="$DOTFILES_DIR/.config/omarchy/plugins/user.calendar-panel"
+CALENDAR_PLUGIN_TARGET="$HOME/.config/omarchy/plugins/user.calendar-panel"
 
 # Color helpers
 RED='\033[0;31m'
@@ -91,19 +93,31 @@ install_item() {
 install_item "$DOTFILES_DIR/.zshrc" "$HOME/.zshrc"
 install_item "$DOTFILES_DIR/.p10k.zsh" "$HOME/.p10k.zsh"
 install_item "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
+install_item "$DOTFILES_DIR/bin/toggle-bar-style" "$HOME/.local/bin/toggle-bar-style"
 install_item "$DOTFILES_DIR/.zfunc/_download" "$HOME/.zfunc/_download"
 install_item "$DOTFILES_DIR/.config/hypr" "$HOME/.config/hypr"
 install_item "$NOTIFICATION_PLUGIN" "$NOTIFICATION_PLUGIN_TARGET"
 install_item "$TREE_PLUGIN" "$TREE_PLUGIN_TARGET"
+install_item "$CALENDAR_PLUGIN" "$CALENDAR_PLUGIN_TARGET"
 
 # Ensure scripts have execute permissions
 chmod +x "$DOTFILES_DIR/bin/download" "$HOME/.local/bin/download"
+chmod +x "$DOTFILES_DIR/bin/toggle-bar-style" "$HOME/.local/bin/toggle-bar-style"
 chmod +x "$NOTIFICATION_PLUGIN/manage.py" "$NOTIFICATION_PLUGIN_TARGET/manage.py"
+chmod +x "$CALENDAR_PLUGIN/manage.py" "$CALENDAR_PLUGIN_TARGET/manage.py"
 
 # Enable Omarchy shell plugin if running on Omarchy
 if command -v omarchy >/dev/null 2>&1; then
-  info "Enabling Omarchy shell plugin user.notification-center..."
+  info "Rescanning Omarchy shell plugins..."
   omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  info "Enabling Omarchy shell plugin user.calendar-panel..."
+  if ! omarchy plugin enable user.calendar-panel >/dev/null 2>&1; then
+    if [[ -f "$HOME/.config/omarchy/shell.json" ]] && command -v jq >/dev/null 2>&1; then
+      tmp_cfg=$(mktemp)
+      jq '.bar.id = "user.calendar-panel"' "$HOME/.config/omarchy/shell.json" > "$tmp_cfg" && mv "$tmp_cfg" "$HOME/.config/omarchy/shell.json"
+    fi
+  fi
+  info "Enabling Omarchy shell plugin user.notification-center..."
   omarchy plugin enable user.notification-center --section right --before omarchy.power >/dev/null 2>&1 || true
   info "Enabling Omarchy shell plugin io.github.shrobin13.global-window-tree..."
   omarchy plugin enable io.github.shrobin13.global-window-tree >/dev/null 2>&1 || true

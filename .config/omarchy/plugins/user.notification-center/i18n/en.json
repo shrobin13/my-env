@@ -58,5 +58,19 @@
   "daysAgo": {
     "one": "%1d ago",
     "other": "%1d ago"
-  }
+  },
+  "markAllRead": "Mark all read",
+  "nowPlaying": "Now Playing",
+  "switchPlayer": "Switch player",
+  "previousTrack": "Previous",
+  "play": "Play",
+  "pause": "Pause",
+  "nextTrack": "Next",
+  "nightLight": "Night Light",
+  "keepAwake": "Keep Awake",
+  "snip": "Snip",
+  "clipboard": "Clipboard",
+  "mute": "Mute",
+  "unmuteAudio": "Unmute",
+  "copiedText": "Copied to clipboard"
 }

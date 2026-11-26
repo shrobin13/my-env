@@ -72,6 +72,10 @@ hl.config({
 		-- See only one column per screen instead of two
 		-- column_width = 0.97,
 	},
+
+	render = {
+		direct_scanout = 1,
+	},
 })
 
 -- https://wiki.hypr.land/Configuring/Basics/Variables/#animations

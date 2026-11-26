@@ -27,6 +27,7 @@ Item {
   signal pinToggled(string key)
   signal muteAppRequested(string appName)
   signal groupToggleRequested(string appName)
+  signal appFilterRequested(string appName)
 
   readonly property color foreground: Commons.Color.foreground
   readonly property color dimColor: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.65)
@@ -133,6 +134,35 @@ Item {
       return true
     }
     return false
+  }
+
+  function copyPrimaryText() {
+    if (cardActions && cardActions.direct) {
+      for (var i = 0; i < cardActions.direct.length; i++) {
+        if (cardActions.direct[i].kind === "code" && cardActions.direct[i].value) {
+          executeCodeCopy(String(cardActions.direct[i].value))
+          return String(cardActions.direct[i].value)
+        }
+      }
+    }
+    var parts = []
+    if (notificationData && notificationData.summary) parts.push(String(notificationData.summary))
+    if (notificationData && notificationData.body) parts.push(String(notificationData.body))
+    var text = parts.join("\n").trim()
+    if (!text) return ""
+    Quickshell.execDetached(["wl-copy", "--", text])
+    return text
+  }
+
+  function openPrimaryLink() {
+    if (cardActions && cardActions.direct) {
+      for (var i = 0; i < cardActions.direct.length; i++) {
+        if (cardActions.direct[i].kind === "url" && cardActions.direct[i].value) {
+          return executeUrlOpen(String(cardActions.direct[i].value))
+        }
+      }
+    }
+    return runPrimaryAction()
   }
 
   // Dismiss animations
@@ -321,6 +351,7 @@ Item {
             anchors.fill: parent
             anchors.margins: Style.space(2)
             source: cardRoot.resolvedIcon
+            sourceSize: Qt.size(Style.space(22), Style.space(22))
             visible: status === Image.Ready && cardRoot.resolvedIcon !== ""
             fillMode: Image.PreserveAspectFit
             asynchronous: true
@@ -337,16 +368,27 @@ Item {
           }
         }
 
-        // App Name
+        // App Name (clickable to filter by app)
         Text {
+          id: appNameText
           textFormat: Text.PlainText
           text: cardRoot.notificationData ? (cardRoot.notificationData.app || "") : ""
           font.family: Style.font.family
           font.pixelSize: Math.max(12, Style.font.body)
           font.bold: true
-          color: cardRoot.foreground
+          font.underline: appNameMouse.containsMouse && text !== ""
+          color: appNameMouse.containsMouse && text !== "" ? Commons.Color.accent : cardRoot.foreground
           elide: Text.ElideRight
           Layout.maximumWidth: Style.space(130)
+
+          MouseArea {
+            id: appNameMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            enabled: appNameText.text !== ""
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onClicked: cardRoot.appFilterRequested(appNameText.text)
+          }
         }
 
         // Unread 6px Accent Dot

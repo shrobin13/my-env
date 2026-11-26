@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import qs.Commons
 import qs.Commons as Commons
 import qs.Ui
@@ -116,10 +117,10 @@ Panel {
     onLoaded: root.updateQuiet()
   }
 
-  // Periodic refresh (30s) to reconcile snoozed expiry and time updates
+  // Periodic refresh while panel is open to reconcile snoozed expiry and time updates
   Timer {
     interval: 30000
-    running: true
+    running: root.opened
     repeat: true
     onTriggered: root.updateNotifications()
   }
@@ -156,6 +157,40 @@ Panel {
     }
   }
 
+  // ---- Full-screen Blur & Dim Backdrop (when Notification Center is open) ----
+  Variants {
+    model: Quickshell.screens
+
+    delegate: Component {
+      PanelWindow {
+        required property var modelData
+        screen: modelData
+        visible: root.opened
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        anchors {
+          top: true
+          bottom: true
+          left: true
+          right: true
+        }
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.namespace: "user-notification-center-backdrop"
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+
+        Rectangle {
+          anchors.fill: parent
+          color: Qt.rgba(9 / 255, 10 / 255, 16 / 255, 0.55)
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          onClicked: root.close()
+        }
+      }
+    }
+  }
+
   // ---- Popout Notification Center Panel ----
   KeyboardPanel {
     id: panel
@@ -168,7 +203,7 @@ Panel {
     contentWidth: panel.fittedContentWidth(
       Math.max(Style.space(280), Math.min(Style.space(500), panel.screenW - (2 * Style.gapsOut)))
     )
-    contentHeight: panel.fittedContentHeight(Style.space(640), Style.space(720))
+    contentHeight: panel.fittedContentHeight(Style.space(700), Style.space(800))
 
     PanelKeyCatcher {
       id: keyCatcher
